@@ -34,18 +34,43 @@ echo "Run log: $LOGFILE"
 echo "Analysis log: $ANALYSIS_LOG"
 echo "────────────────────────────────────────────────────────"
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 path/to/data.(xlsx|csv) [sheet_name_or_index if xlsx]"
-  exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_INPUT="${1:-}"
+
+# When a default input is provided, only keep the basename so that
+# prompting remains relative to the script directory as requested.
+if [[ -n "$DEFAULT_INPUT" ]]; then
+  DEFAULT_INPUT="$(basename "$DEFAULT_INPUT")"
 fi
 
-SRC="$1"
+while true; do
+  if [[ -n "$DEFAULT_INPUT" ]]; then
+    read -r -p "Enter dataset file name located in $SCRIPT_DIR [${DEFAULT_INPUT}]: " SRC_BASENAME
+    SRC_BASENAME="${SRC_BASENAME:-$DEFAULT_INPUT}"
+  else
+    read -r -p "Enter dataset file name located in $SCRIPT_DIR: " SRC_BASENAME
+  fi
+
+  if [[ -z "$SRC_BASENAME" ]]; then
+    echo "A file name is required. Please try again."
+    continue
+  fi
+
+  if [[ "$SRC_BASENAME" == /* ]]; then
+    SRC="$SRC_BASENAME"
+  else
+    SRC="$SCRIPT_DIR/$SRC_BASENAME"
+  fi
+
+  if [[ -f "$SRC" ]]; then
+    break
+  fi
+
+  echo "ERROR: File not found in script directory: $SRC_BASENAME"
+  DEFAULT_INPUT=""
+done
+
 EXCEL_SHEET="${2:-}"
-
-if [[ ! -f "$SRC" ]]; then
-  echo "ERROR: File not found: $SRC"
-  exit 1
-fi
 
 mkdir -p "$OUTDIR"
 
@@ -75,10 +100,25 @@ EXT="${SRC##*.}"
 EXT_LOWER="$(printf "%s" "$EXT" | tr '[:upper:]' '[:lower:]')"
 SRC_ESCAPED="$(sql_quote "$SRC")"
 
+if [[ "$EXT_LOWER" == "xlsx" ]]; then
+  if [[ -z "$EXCEL_SHEET" ]]; then
+    read -r -p "Enter Excel sheet name or index to load (press Enter for the first sheet): " EXCEL_SHEET
+  else
+    read -r -p "Enter Excel sheet name or index to load (press Enter to use '$EXCEL_SHEET'): " sheet_input
+    if [[ -n "$sheet_input" ]]; then
+      EXCEL_SHEET="$sheet_input"
+    fi
+  fi
+fi
+
 make_load_prelude() {
   if [[ "$EXT_LOWER" == "xlsx" ]]; then
     if [[ -n "$EXCEL_SHEET" ]]; then
-      SHEET_CLAUSE=", sheet = '$(sql_quote "$EXCEL_SHEET")'"
+      if [[ "$EXCEL_SHEET" =~ ^[0-9]+$ ]]; then
+        SHEET_CLAUSE=", sheet = $EXCEL_SHEET"
+      else
+        SHEET_CLAUSE=", sheet = '$(sql_quote "$EXCEL_SHEET")'"
+      fi
     else
       SHEET_CLAUSE=""
     fi
