@@ -580,7 +580,7 @@ WITH sales AS (
     ) AS ppsf
   FROM v_all
   WHERE ppsf IS NOT NULL
-),
+  ),
   corr AS (
     SELECT
       round(corr(yb, ppsf)::DOUBLE, 4) AS corr_year_ppsf
@@ -599,9 +599,12 @@ WITH sales AS (
     FROM decades
     GROUP BY decade
   )
-SELECT * FROM corr
+SELECT
+  'corr_year_ppsf' AS metric,
+  corr_year_ppsf AS value
+FROM corr
 UNION ALL
-SELECT * FROM med;
+SELECT metric, value FROM med;
 .quit
 SQL
       echo "Result: $output_file"
