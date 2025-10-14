@@ -20,6 +20,7 @@ The scripts assume the following tools are installed locally:
 - **DuckDB CLI** with the ability to install the Excel extension (`duckdb` command on your `PATH`).
 - **jq** for JSON manipulation when talking to the LLM endpoint.
 - **curl** for HTTP requests to the Gemini API.
+- **python3** with the [`requests`](https://pypi.org/project/requests/), [`beautifulsoup4`](https://pypi.org/project/beautifulsoup4/), and [`lxml`](https://pypi.org/project/lxml/) packages for the new website parsing workflow.
 
 If you plan to use the LLM workflow, you must also provide a valid Google Gemini API key.
 
@@ -37,6 +38,8 @@ If you plan to use the LLM workflow, you must also provide a valid Google Gemini
 
 3. Choose a menu option to execute one of the curated DuckDB reports. Results are displayed in the terminal and saved to a timestamped log file under `output/`.
 
+   - Option `10` triggers a guided workflow that submits a name to the Florida Department of Financial Services (DFS) licensee search portal and prints the tabular results. It relies on the helper script in `scripts/fldfs_scraper.py` and the Python dependencies listed above.
+
 4. Select the `L` option to send a natural-language prompt to Gemini. Review and replace the hard-coded `GEMINI_API_KEY` in the script with your own key before using this feature.
 
 5. Inspect run history via:
@@ -49,8 +52,8 @@ If you plan to use the LLM workflow, you must also provide a valid Google Gemini
 
 ## Repository Layout
 
-- `analyze_csv.sh` – main menu-driven analysis script (current version with Gemini prompt display).
-- `analyze_csv-original.sh` – previous iteration without the Gemini prompt logging tweaks.
+- `analyze_csv.sh` – main menu-driven analysis script (current version with Gemini prompt display and DFS website tester).
+- `scripts/fldfs_scraper.py` – Python helper that handles the ASP.NET form workflow for the DFS licensee search.
 - `older-files/` – archives of earlier scripts and resources.
 - `ParcelListing-Lee County-20251010-1150.*` – example dataset exports used for testing.
 
