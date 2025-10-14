@@ -176,6 +176,7 @@ while true; do
   echo "  7) Transaction Volume / Hotspots"
   echo "  8) Value Drivers (YearBuilt, Size, etc.)"
   echo "  9) Long-Term Ownership"
+  echo " 10) Test Parse of Website (FL DFS)"
   echo "  L) LLM Prompt / Analysis"
   echo "  0) Quit"
   read -p "Enter choice [0-9, L]: " choice
@@ -637,6 +638,37 @@ WHERE long_hold_count > 0
 ORDER BY long_hold_count DESC;
 .quit
 SQL
+      echo "Result: $output_file"
+      ;;
+    10)
+      echo "--- Test Parse of Website (Florida DFS) ---"
+      if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 is required for the website parser."
+        continue
+      fi
+
+      missing_modules=()
+      for module in requests bs4 lxml; do
+        if ! python3 -c "import importlib, sys; importlib.import_module(sys.argv[1])" "$module" >/dev/null 2>&1; then
+          missing_modules+=("$module")
+        fi
+      done
+
+      if (( ${#missing_modules[@]} > 0 )); then
+        echo "ERROR: Missing Python modules: ${missing_modules[*]}"
+        echo "Install them with: python3 -m pip install ${missing_modules[*]}"
+        continue
+      fi
+
+      read -r -p "Enter entity name to search on the DFS site: " dfs_entity
+      if [[ -z "$dfs_entity" ]]; then
+        echo "No entity name entered."
+        continue
+      fi
+
+      output_file="$(make_output_file 10)"
+      python3 "$SCRIPT_DIR/scripts/fldfs_scraper.py" --entity "$dfs_entity" \
+        | tee "$output_file"
       echo "Result: $output_file"
       ;;
     *)
