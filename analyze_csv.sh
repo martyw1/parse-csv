@@ -692,7 +692,9 @@ SQL
         continue
       fi
 
-      read -r -p "Enter entity name to search on the DFS site: " dfs_entity
+      echo "Enter the legal name of the business or individual licensee as it appears on the Florida DFS Licensee Search."
+      echo "Examples: 'ABC Insurance Agency' or 'Smith John'."
+      read -r -p "Entity name: " dfs_entity
       if [[ -z "$dfs_entity" ]]; then
         echo "No entity name entered."
         continue
