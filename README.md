@@ -1,48 +1,45 @@
 # parse-csv
 
-Interactive DuckDB tooling for exploring Lee County property records and other delimited spreadsheets.
+Interactive DuckDB tooling for exploring Lee County property records and other large delimited spreadsheets.
 
-## Overview
+## Key Features
 
-This repository contains shell scripts that streamline loading parcel-level datasets into DuckDB for quick, menu-driven analysis. The primary entry point is [`analyze_csv.sh`](analyze_csv.sh), which:
-
-- Works with large `.csv` and `.xlsx` files using DuckDB's CSV reader and Excel extension.
-- Normalizes commonly used Lee County assessor column names (sale date, amount, size, owner, etc.).
-- Provides a menu of prebuilt queries covering sales activity, ownership patterns, value-add opportunities, and more.
-- Offers an optional "LLM" prompt that sends a natural-language request to Google Gemini, converts it to DuckDB SQL, and runs the generated query.
-- Logs each run to `script-run.log`, `analysis-results.log`, and time-stamped files in the `output/` directory for later review.
+- **Menu-driven DuckDB analysis** – [`analyze_csv.sh`](analyze_csv.sh) loads `.csv` or `.xlsx` datasets into a temporary DuckDB view and exposes curated reports for sales trends, ownership concentration, value-add targets, and more.
+- **Automatic column normalization** – the script maps expected Lee County assessor headers (sale date, sale amount, square footage, owner, etc.) so the bundled SQL queries work against new extracts with minimal editing.
+- **Excel workbook support** – when you provide an `.xlsx` file you can interactively pick the worksheet (by name or index) before data are imported with DuckDB's Excel extension.
+- **Robust logging** – every run appends to `script-run.log` and `analysis-results.log`, and individual query outputs are written to timestamped files under `output/` for easy auditing.
+- **LLM-assisted querying** – option `L` sends a natural-language prompt to Google Gemini, echoes the constructed request, then executes the returned SQL against the loaded DuckDB view.
+- **Florida DFS scraper** – option `10` delegates to [`scripts/fldfs_scraper.py`](scripts/fldfs_scraper.py) to submit a search to the Florida Department of Financial Services licensee portal and prints the results in a readable table.
 
 ## Prerequisites
 
-The scripts assume the following tools are installed locally:
+Install the following locally before running the toolkit:
 
-- **Bash** (uses `set -euo pipefail` and arrays).
-- **DuckDB CLI** with the ability to install the Excel extension (`duckdb` command on your `PATH`).
-- **jq** for JSON manipulation when talking to the LLM endpoint.
-- **curl** for HTTP requests to the Gemini API.
-- **python3** with the [`requests`](https://pypi.org/project/requests/), [`beautifulsoup4`](https://pypi.org/project/beautifulsoup4/), and [`lxml`](https://pypi.org/project/lxml/) packages for the new website parsing workflow.
+- **Bash** with support for `set -euo pipefail` and arrays.
+- **DuckDB CLI** (`duckdb`) with permission to install the Excel extension.
+- **jq** for constructing JSON payloads.
+- **curl** for REST requests to the Gemini API.
+- **python3** with the [`requests`](https://pypi.org/project/requests/), [`beautifulsoup4`](https://pypi.org/project/beautifulsoup4/), and [`lxml`](https://pypi.org/project/lxml/) packages to power the DFS scraping workflow.
 
-If you plan to use the LLM workflow, you must also provide a valid Google Gemini API key.
+If you intend to use the LLM integration you also need a valid Google Gemini API key.
 
 ## Usage
 
-1. Place your CSV or Excel file in the repository directory (or reference it with a relative/absolute path when prompted).
-2. Run the analysis script:
+1. Place your CSV or Excel file in the repository (or be prepared to enter an absolute path).
+2. Launch the analysis script:
 
    ```bash
    ./analyze_csv.sh [dataset-file] [sheet]
    ```
 
-   - If you omit the file argument, the script will prompt for one. When analyzing Excel workbooks you may optionally specify a sheet name or index.
-   - Column mappings (sale date, sale amount, square footage, etc.) are defined near the top of the script; adjust them if your dataset uses different headers.
+   - If you omit the dataset argument the script prompts for one. For Excel workbooks you may optionally provide a sheet name or index; otherwise you will be prompted interactively.
+   - Column aliases (sale date, amount, square footage, building value, etc.) are defined near the top of the script—tweak them as needed for non-standard exports.
 
-3. Choose a menu option to execute one of the curated DuckDB reports. Results are displayed in the terminal and saved to a timestamped log file under `output/`.
-
-   - Option `10` triggers a guided workflow that submits a name to the Florida Department of Financial Services (DFS) licensee search portal and prints the tabular results. It relies on the helper script in `scripts/fldfs_scraper.py` and the Python dependencies listed above.
-
-4. Select the `L` option to send a natural-language prompt to Gemini. Review and replace the hard-coded `GEMINI_API_KEY` in the script with your own key before using this feature.
-
-5. Inspect run history via:
+3. Review the initial metadata summary the script prints (row count, schema, sample rows), then pick from the on-screen menu. Each selection logs the SQL that ran and saves results to a unique file inside `output/`.
+4. Optional workflows:
+   - Choose **`L`** to send a natural-language request to Gemini. The script displays the API key, endpoint, and JSON payload before issuing the call so you can review or reproduce the request. Replace the placeholder `GEMINI_API_KEY` in the script with your own secret before relying on this feature.
+   - Choose **`10`** to run the Florida DFS search helper. You will be prompted for an entity name; the Python helper validates required libraries, submits the ASP.NET form sequence, and prints a formatted table (or truncated preview for large result sets).
+5. Inspect run history at any time via:
 
    ```bash
    less script-run.log
@@ -50,13 +47,30 @@ If you plan to use the LLM workflow, you must also provide a valid Google Gemini
    ls output/
    ```
 
+## Menu Reference
+
+| Option | Report | Description |
+| ------ | ------ | ----------- |
+| 1 | Recent Office Sales & PPSF | Aggregates the last 24 months of sales by city/ZIP with price-per-square-foot statistics. |
+| 2 | Top Owners & Portfolios | Counts properties and total square footage by owner to highlight portfolio leaders. |
+| 3 | Older Inventory & Value-Add | Flags ZIP/era cohorts where building value per square foot trails the 25th percentile benchmark. |
+| 4 | Out-of-Area Owners | Lists owners with property counts plus their mailing location and covered ZIP codes. |
+| 5 | Size Distribution | Buckets inventory into size ranges and reports property counts and mix percentages. |
+| 6 | Underperforming Assets | Identifies parcels with building value per square foot below ZIP-level quartiles. |
+| 7 | Transaction Volume / Hotspots | Tallies the last three years of sales activity by geography and year. |
+| 8 | Value Drivers | Computes correlation of price-per-square-foot with year built and median metrics by decade. |
+| 9 | Long-Term Ownership | Highlights owners with holdings older than 10 years to surface long-term holders. |
+| 10 | Florida DFS Licensee Search | Runs the external scraper to fetch licensing search results for a given entity. |
+| L | LLM Prompt / Analysis | Converts natural-language prompts to DuckDB SQL using Gemini, then executes and logs the results. |
+
 ## Repository Layout
 
-- `analyze_csv.sh` – main menu-driven analysis script (current version with Gemini prompt display and DFS website tester).
-- `scripts/fldfs_scraper.py` – Python helper that handles the ASP.NET form workflow for the DFS licensee search.
-- `older-files/` – archives of earlier scripts and resources.
-- `ParcelListing-Lee County-20251010-1150.*` – example dataset exports used for testing.
+- `analyze_csv.sh` – main menu-driven analysis script (current build with Gemini prompt display and DFS integration).
+- `scripts/fldfs_scraper.py` – Python helper for the DFS licensee search workflow (prints tables or JSON).
+- `output/` – timestamped result files written for each menu selection or LLM request.
+- `older-files/` – archived versions of prior scripts or resources.
+- `ParcelListing-Lee County-20251010-1150.*` – example parcel exports for testing the DuckDB workflows.
 
-## Security Note
+## Security Reminder
 
-The committed script currently contains a placeholder Gemini API key. Treat it as invalid and replace it with your own secret before running the LLM workflow. Never commit real API keys to version control.
+A placeholder Gemini API key is committed for demonstration purposes only. Replace it with your own secret and keep the real value out of version control.
