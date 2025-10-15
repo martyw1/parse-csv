@@ -47,18 +47,25 @@ class FldfsScraper:
         base_url: str = DEFAULT_BASE_URL,
         search_path: str = DEFAULT_SEARCH_PATH,
         timeout: int = 45,
+        verbose: bool = True,
     ) -> None:
         self.base_url = base_url
         self.search_path = search_path
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
+        self.verbose = verbose
+
+    def _log(self, message: str) -> None:
+        if self.verbose:
+            print(message, flush=True)
 
     # ------------------------------------------------------------------
     # Form helpers
     # ------------------------------------------------------------------
     def _fetch_initial_form(self) -> Tuple[BeautifulSoup, Response]:
         url = urljoin(self.base_url, self.search_path)
+        self._log(f"[HTTP] -> GET {url}")
         try:
             resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
@@ -67,10 +74,17 @@ class FldfsScraper:
                 f"Unable to fetch the DFS search page: {exc}"
             ) from exc
 
+        self._log(
+            f"[HTTP] <- {resp.status_code} {len(resp.content)} bytes from {resp.url}"
+        )
+        self._log("[HTTP] Response body (initial form):")
+        self._log(resp.text)
+
         soup = BeautifulSoup(resp.text, "lxml")
         form = soup.find("form")
         if form is None:
             raise FldfsScraperError("Search page does not contain a <form> element.")
+        self._log("[EVENT] Located search form on the DFS page.")
         return soup, resp
 
     def _collect_inputs(self, form: BeautifulSoup) -> Dict[str, str]:
@@ -88,6 +102,9 @@ class FldfsScraper:
                     payload[name] = tag.get("value", "on")
                 continue
             payload[name] = tag.get("value", "")
+        self._log(
+            f"[EVENT] Collected {len(payload)} input values from the search form."
+        )
         return payload
 
     def _detect_field_name(self, form: BeautifulSoup, hints: Iterable[str]) -> Optional[str]:
@@ -99,10 +116,16 @@ class FldfsScraper:
             candidate = name.lower()
             for hint in lowered_hints:
                 if hint in candidate:
+                    self._log(
+                        f"[EVENT] Using input field '{name}' for the entity name search."
+                    )
                     return name
             element_id = tag.get("id", "").lower()
             for hint in lowered_hints:
                 if hint in element_id:
+                    self._log(
+                        f"[EVENT] Using input field '{name}' (matched by id) for the entity name search."
+                    )
                     return name
         return None
 
@@ -113,6 +136,9 @@ class FldfsScraper:
                 continue
             value = tag.get("value") or tag.get_text(strip=True) or ""
             if "search" in value.lower() or "search" in name.lower():
+                self._log(
+                    f"[EVENT] Using submit control '{name}' with value '{value}'."
+                )
                 return name, value or "Search"
         raise FldfsScraperError("Could not find a search submit control on the page.")
 
@@ -132,6 +158,7 @@ class FldfsScraper:
                 "Unable to automatically determine the entity search input name."
             )
         payload[text_field_name] = entity_name
+        self._log(f"[EVENT] Populated entity search value: '{entity_name}'.")
 
         submit_name, submit_value = self._detect_submit_control(form)
         payload[submit_name] = submit_value
@@ -141,8 +168,12 @@ class FldfsScraper:
         payload.setdefault("__EVENTARGUMENT", "")
         payload.setdefault("__LASTFOCUS", "")
 
+        self._log("[HTTP] Prepared POST form payload:")
+        self._log(json.dumps(payload, indent=2, ensure_ascii=False))
+
         action = form.get("action") or response.url
         url = urljoin(response.url, action)
+        self._log(f"[HTTP] -> POST {url}")
         try:
             post_resp = self.session.post(url, data=payload, timeout=self.timeout)
             post_resp.raise_for_status()
@@ -150,6 +181,12 @@ class FldfsScraper:
             raise FldfsScraperError(
                 f"Search submission failed: {exc}"
             ) from exc
+
+        self._log(
+            f"[HTTP] <- {post_resp.status_code} {len(post_resp.content)} bytes from {post_resp.url}"
+        )
+        self._log("[HTTP] Response body (search results):")
+        self._log(post_resp.text)
 
         return self._parse_results(post_resp.text)
 
@@ -174,12 +211,14 @@ class FldfsScraper:
             raise FldfsScraperError(
                 "Unable to locate a results table in the response HTML."
             )
+        self._log("[EVENT] Located results table in response HTML.")
 
         headers = [th.get_text(strip=True) for th in table.find_all("th")]
         if not headers:
             raise FldfsScraperError(
                 "Results table does not have any header cells to describe data."
             )
+        self._log(f"[EVENT] Extracted headers: {headers}")
 
         rows: List[SearchResult] = []
         for tr in table.find_all("tr"):
@@ -187,8 +226,12 @@ class FldfsScraper:
             if not cells:
                 continue
             rows.append(SearchResult([cell.get_text(strip=True) for cell in cells]))
+        self._log(f"[EVENT] Parsed {len(rows)} result rows from the table.")
 
         results_as_dicts = [row.as_dict(headers) for row in rows]
+        self._log(
+            "[EVENT] Completed DFS search parsing; preparing structured result payload."
+        )
         return {
             "headers": headers,
             "row_count": len(results_as_dicts),
@@ -198,7 +241,10 @@ class FldfsScraper:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Submit a DFS licensee search and print the results."
+        description=(
+            "Submit a DFS licensee search and print the results while echoing all HTTP "
+            "requests, responses, and parsing events."
+        )
     )
     parser.add_argument(
         "--entity",
