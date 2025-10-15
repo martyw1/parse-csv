@@ -7,9 +7,39 @@
 set -euo pipefail
 IFS=$'\n'
 
-LOGFILE="script-run.log"
-ANALYSIS_LOG="analysis-results.log"
-OUTDIR="output"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOGFILE="$SCRIPT_DIR/script-run.log"
+ANALYSIS_LOG="$SCRIPT_DIR/analysis-results.log"
+OUTDIR="$SCRIPT_DIR/output"
+
+PKG_INSTALL_CMD=""
+
+detect_package_manager() {
+  if command -v brew >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="brew install"
+  elif command -v apt-get >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="sudo apt-get install"
+  elif command -v apt >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="sudo apt install"
+  elif command -v dnf >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="sudo dnf install"
+  elif command -v pacman >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="sudo pacman -S"
+  elif command -v zypper >/dev/null 2>&1; then
+    PKG_INSTALL_CMD="sudo zypper install"
+  fi
+}
+
+install_hint() {
+  local package_name="$1"
+  if [[ -n "$PKG_INSTALL_CMD" ]]; then
+    printf 'Install via: %s %s\n' "$PKG_INSTALL_CMD" "$package_name"
+  else
+    printf 'Please install "%s" using your system package manager.\n' "$package_name"
+  fi
+}
+
+detect_package_manager
 
 # Your actual API key (hardcoded as requested)
 GEMINI_API_KEY="AIzaSyDCuNdhjqtH20jLbuxtpOd4tMgy-mCe5Ak"
@@ -34,7 +64,6 @@ echo "Run log: $LOGFILE"
 echo "Analysis log: $ANALYSIS_LOG"
 echo "────────────────────────────────────────────────────────"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_INPUT="${1:-}"
 
 # When a default input is provided, only keep the basename so that
@@ -83,10 +112,12 @@ make_output_file() {
 
 if ! command -v duckdb >/dev/null 2>&1; then
   echo "ERROR: duckdb CLI not installed"
+  install_hint "duckdb"
   exit 1
 fi
 if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq is required to parse JSON. Install via `brew install jq`."
+  echo "ERROR: jq is required to parse JSON."
+  install_hint "jq"
   exit 1
 fi
 
@@ -644,6 +675,7 @@ SQL
       echo "--- Test Parse of Website (Florida DFS) ---"
       if ! command -v python3 >/dev/null 2>&1; then
         echo "ERROR: python3 is required for the website parser."
+        install_hint "python3"
         continue
       fi
 
