@@ -436,7 +436,7 @@ SELECT
   name AS column_name,
   type AS data_type,
   TRY_CAST(NULLIF(REGEXP_EXTRACT(type, '\\((\\d+)\\)'), '') AS INTEGER) AS length,
-  CASE WHEN notnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+  CASE WHEN "notnull" THEN 'NO' ELSE 'YES' END AS is_nullable,
   COALESCE(CAST(dflt_value AS VARCHAR), 'NULL') AS default_value
 FROM pragma_table_info('v_all')
 ORDER BY cid;
@@ -455,7 +455,7 @@ SELECT
   name AS column_name,
   type AS data_type,
   TRY_CAST(NULLIF(REGEXP_EXTRACT(type, '\\((\\d+)\\)'), '') AS INTEGER) AS length,
-  CASE WHEN notnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+  CASE WHEN "notnull" THEN 'NO' ELSE 'YES' END AS is_nullable,
   COALESCE(CAST(dflt_value AS VARCHAR), 'NULL') AS default_value
 FROM pragma_table_info('$LOCAL_TABLE_NAME')
 ORDER BY cid;
