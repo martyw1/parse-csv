@@ -94,6 +94,27 @@ GEMINI_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL
 note () { echo "$*" | tee -a "$ANALYSIS_LOG" >/dev/null; }
 sql_quote() { printf "%s" "$1" | sed "s/'/''/g"; }
 
+strip_code_fences() {
+  python3 - <<'PY'
+import sys
+
+text = sys.stdin.read()
+text = text.strip()
+
+if text.startswith("```"):
+    lines = text.splitlines()
+    if lines and lines[0].lstrip().startswith("```"):
+        lines = lines[1:]
+    while lines and not lines[-1].strip():
+        lines = lines[:-1]
+    if lines and lines[-1].strip().startswith("```"):
+        lines = lines[:-1]
+    text = "\n".join(lines).strip()
+
+sys.stdout.write(text)
+PY
+}
+
 exec > >(tee -a "$LOGFILE") 2>&1
 
 print_title_box
@@ -104,6 +125,7 @@ echo "Dependency check results:"
 check_dependency duckdb
 check_dependency jq
 check_dependency curl
+check_dependency python3
 echo
 
 DEFAULT_INPUT="${1:-}"
@@ -290,10 +312,12 @@ while true; do
   echo "  3) Source dataset – column details"
   echo "  4) Local DuckDB – column details"
   echo "  5) Source dataset – first row (vertical view)"
-  echo "  6) Open DuckDB UI"
+  echo "  6) Show the first 50 rows"
+  echo "  7) Show the last 50 rows"
+  echo "  8) Show every 20th row"
   echo "  L) LLM Prompt and Analysis"
   echo "  0) Quit"
-  read -r -p "Enter choice [0-6, L]: " choice
+  read -r -p "Enter choice [0-8, L]: " choice
 
   case "$choice" in
     0)
@@ -356,6 +380,7 @@ INSTRUCTION
         fi
 
         generated=$(echo "$response_body" | jq -r '.candidates[0].content.parts[0].text // .candidates[0].content // .candidates[0].text // .result')
+        generated=$(printf '%s' "$generated" | strip_code_fences)
         if [[ -z "$generated" ]]; then
           echo "ERROR: LLM response did not include text content."
           {
@@ -554,8 +579,52 @@ SQL
       echo "Result: $output_file"
       ;;
     6)
-      echo "--- Open DuckDB UI ---"
-      duckdb -ui "$LOCAL_DB_PATH"
+      echo "--- Show the first 50 rows ---"
+      output_file="$(make_output_file 6)"
+      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+.headers on
+.mode box
+SELECT *
+FROM "$LOCAL_TABLE_NAME"
+ORDER BY rowid
+LIMIT 50;
+.quit
+SQL
+      echo "Result: $output_file"
+      ;;
+    7)
+      echo "--- Show the last 50 rows ---"
+      output_file="$(make_output_file 7)"
+      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+.headers on
+.mode box
+WITH last_rowids AS (
+  SELECT rowid
+  FROM "$LOCAL_TABLE_NAME"
+  ORDER BY rowid DESC
+  LIMIT 50
+)
+SELECT *
+FROM "$LOCAL_TABLE_NAME"
+WHERE rowid IN (SELECT rowid FROM last_rowids)
+ORDER BY rowid;
+.quit
+SQL
+      echo "Result: $output_file"
+      ;;
+    8)
+      echo "--- Show every 20th row ---"
+      output_file="$(make_output_file 8)"
+      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+.headers on
+.mode box
+SELECT *
+FROM "$LOCAL_TABLE_NAME"
+WHERE rowid % 20 = 0
+ORDER BY rowid;
+.quit
+SQL
+      echo "Result: $output_file"
       ;;
     *)
       echo "Invalid choice: $choice"
