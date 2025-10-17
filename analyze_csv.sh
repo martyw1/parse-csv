@@ -54,11 +54,24 @@ check_dependency() {
   fi
 }
 
-detect_package_manager
+print_title_box() {
+  local reset='\033[0m'
+  local border_color='\033[1;34m'
+  local title_color='\033[1;97m'
+  local accent_color='\033[1;36m'
+  local border_line="+========================================================================+"
 
-check_dependency duckdb
-check_dependency jq
-check_dependency curl
+  printf '%b%s%b\n' "$border_color" "$border_line" "$reset"
+  printf '%b| %b%-70s%b %b|\n' "$border_color" "$title_color" "Dataset Parsing Toolkit" "$reset" "$border_color"
+  printf '%b| %b%-70s%b %b|\n' "$border_color" "$accent_color" "industryzoom.ai" "$reset" "$border_color"
+  printf '%b| %b%-70s%b %b|\n' "$border_color" "$title_color" "(c) 2025 industryzoom.ai. All rights reserved." "$reset" "$border_color"
+  printf '%b%s%b\n' "$border_color" "$border_line" "$reset"
+  echo
+  printf 'Session started: %s\n' "$(date)"
+  printf 'Run log: %s\n' "$LOGFILE"
+  printf 'Analysis log: %s\n' "$ANALYSIS_LOG"
+  echo
+}
 
 # Your actual API key (hardcoded as requested)
 GEMINI_API_KEY="AIzaSyDCuNdhjqtH20jLbuxtpOd4tMgy-mCe5Ak"
@@ -77,11 +90,15 @@ sql_quote() { printf "%s" "$1" | sed "s/'/''/g"; }
 
 exec > >(tee -a "$LOGFILE") 2>&1
 
-echo "────────────────────────────────────────────────────────"
-echo "Dataset Parsing Toolkit - IndustryZoom.ai — $(date)"
-echo "Run log: $LOGFILE"
-echo "Analysis log: $ANALYSIS_LOG"
-echo "────────────────────────────────────────────────────────"
+print_title_box
+
+detect_package_manager
+
+echo "Dependency check results:"
+check_dependency duckdb
+check_dependency jq
+check_dependency curl
+echo
 
 DEFAULT_INPUT="${1:-}"
 
@@ -204,16 +221,35 @@ load_dataset_into_local_db
 
 # Metadata
 echo "Loading dataset and showing metadata..."
-duckdb <<SQL
-$(make_load_prelude)
-SELECT COUNT(*) AS total_rows FROM v_all;
-PRAGMA table_info('v_all');
-SELECT * FROM v_all LIMIT 1 OFFSET 1;
-SELECT * FROM v_all
-ORDER BY TRY_CAST("$COL_SALE_DATE" AS DATE) DESC NULLS LAST
-LIMIT 1;
+TOTAL_ROWS=$(duckdb "$LOCAL_DB_PATH" <<'SQL'
+.headers off
+.mode list
+SELECT COUNT(*) FROM v_all;
 .quit
 SQL
+)
+TOTAL_COLUMNS=$(duckdb "$LOCAL_DB_PATH" <<'SQL'
+.headers off
+.mode list
+SELECT COUNT(*) FROM pragma_table_info('v_all');
+.quit
+SQL
+)
+
+echo "Dataset dimensions: ${TOTAL_ROWS} rows × ${TOTAL_COLUMNS} columns"
+echo
+echo "Column overview:"
+duckdb "$LOCAL_DB_PATH" <<'SQL'
+.headers on
+.mode column
+SELECT cid AS column_index,
+       name AS column_name,
+       type AS column_type
+FROM pragma_table_info('v_all')
+ORDER BY cid;
+.quit
+SQL
+echo
 
 COLUMN_METADATA_TEXT="$(duckdb "$LOCAL_DB_PATH" <<'SQL'
 .mode csv
