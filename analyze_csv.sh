@@ -120,8 +120,15 @@ if [[ -n "$DEFAULT_INPUT" ]]; then
   fi
   SRC_BASENAME="$(basename "$SRC")"
 else
-  mapfile -t DATASET_FILES < <(find "$SCRIPT_DIR" -maxdepth 1 -type f \(
-    -iname '*.csv' -o -iname '*.xlsx' -o -iname '*.xls' -o -iname '*.txt'\) | sort)
+  DATASET_FILES=()
+  while IFS= read -r dataset_file; do
+    DATASET_FILES+=("$dataset_file")
+  done < <({
+    find "$SCRIPT_DIR" -type f -iname '*.csv'
+    find "$SCRIPT_DIR" -type f -iname '*.xlsx'
+    find "$SCRIPT_DIR" -type f -iname '*.xls'
+    find "$SCRIPT_DIR" -type f -iname '*.txt'
+  } | sort -u)
 
   if (( ${#DATASET_FILES[@]} == 0 )); then
     echo "ERROR: No dataset files (.csv, .xlsx, .xls, .txt) found in $SCRIPT_DIR"
@@ -131,7 +138,8 @@ else
   while true; do
     echo "Available dataset files:"
     for idx in "${!DATASET_FILES[@]}"; do
-      printf '  %2d) %s\n' "$((idx + 1))" "$(basename "${DATASET_FILES[$idx]}")"
+      display_name="${DATASET_FILES[$idx]#"$SCRIPT_DIR"/}"
+      printf '  %2d) %s\n' "$((idx + 1))" "${display_name:-$(basename "${DATASET_FILES[$idx]}")}"
     done
     read -r -p "Select dataset file [1-${#DATASET_FILES[@]}]: " selection
 
