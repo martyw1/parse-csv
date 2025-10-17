@@ -7,6 +7,12 @@
 set -euo pipefail
 IFS=$'\n'
 
+if command -v clear >/dev/null 2>&1; then
+  clear
+else
+  printf '\033c'
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGFILE="$SCRIPT_DIR/script-run.log"
 ANALYSIS_LOG="$SCRIPT_DIR/analysis-results.log"
@@ -102,38 +108,44 @@ echo
 
 DEFAULT_INPUT="${1:-}"
 
-# When a default input is provided, only keep the basename so that
-# prompting remains relative to the script directory as requested.
 if [[ -n "$DEFAULT_INPUT" ]]; then
-  DEFAULT_INPUT="$(basename "$DEFAULT_INPUT")"
+  if [[ "$DEFAULT_INPUT" == /* ]]; then
+    SRC="$DEFAULT_INPUT"
+  else
+    SRC="$SCRIPT_DIR/$DEFAULT_INPUT"
+  fi
+  if [[ ! -f "$SRC" ]]; then
+    echo "ERROR: Provided dataset file not found: $DEFAULT_INPUT"
+    exit 1
+  fi
+  SRC_BASENAME="$(basename "$SRC")"
+else
+  mapfile -t DATASET_FILES < <(find "$SCRIPT_DIR" -maxdepth 1 -type f \(
+    -iname '*.csv' -o -iname '*.xlsx' -o -iname '*.xls' -o -iname '*.txt'\) | sort)
+
+  if (( ${#DATASET_FILES[@]} == 0 )); then
+    echo "ERROR: No dataset files (.csv, .xlsx, .xls, .txt) found in $SCRIPT_DIR"
+    exit 1
+  fi
+
+  while true; do
+    echo "Available dataset files:"
+    for idx in "${!DATASET_FILES[@]}"; do
+      printf '  %2d) %s\n' "$((idx + 1))" "$(basename "${DATASET_FILES[$idx]}")"
+    done
+    read -r -p "Select dataset file [1-${#DATASET_FILES[@]}]: " selection
+
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+      selection=$((selection))
+      if (( selection >= 1 && selection <= ${#DATASET_FILES[@]} )); then
+        SRC="${DATASET_FILES[selection-1]}"
+        SRC_BASENAME="$(basename "$SRC")"
+        break
+      fi
+    fi
+    echo "Invalid selection. Please choose a number between 1 and ${#DATASET_FILES[@]}."
+  done
 fi
-
-while true; do
-  if [[ -n "$DEFAULT_INPUT" ]]; then
-    read -r -p "Enter dataset file name located in $SCRIPT_DIR [${DEFAULT_INPUT}]: " SRC_BASENAME
-    SRC_BASENAME="${SRC_BASENAME:-$DEFAULT_INPUT}"
-  else
-    read -r -p "Enter dataset file name located in $SCRIPT_DIR: " SRC_BASENAME
-  fi
-
-  if [[ -z "$SRC_BASENAME" ]]; then
-    echo "A file name is required. Please try again."
-    continue
-  fi
-
-  if [[ "$SRC_BASENAME" == /* ]]; then
-    SRC="$SRC_BASENAME"
-  else
-    SRC="$SCRIPT_DIR/$SRC_BASENAME"
-  fi
-
-  if [[ -f "$SRC" ]]; then
-    break
-  fi
-
-  echo "ERROR: File not found in script directory: $SRC_BASENAME"
-  DEFAULT_INPUT=""
-done
 
 EXCEL_SHEET="${2:-}"
 
@@ -192,7 +204,7 @@ INSTALL excel;
 LOAD excel;
 CREATE OR REPLACE VIEW v_all AS
 SELECT *
-FROM read_xlsx('$SRC_ESCAPED'${SHEET_CLAUSE}, header = true, ignore_errors = true);
+FROM read_xlsx('$SRC_ESCAPED'${SHEET_CLAUSE}, header = true);
 SQL
   else
     cat <<SQL
@@ -270,9 +282,10 @@ while true; do
   echo "  3) Source dataset – column details"
   echo "  4) Local DuckDB – column details"
   echo "  5) Source dataset – first row (vertical view)"
+  echo "  6) Open DuckDB UI"
   echo "  L) LLM Prompt and Analysis"
   echo "  0) Quit"
-  read -r -p "Enter choice [0-5, L]: " choice
+  read -r -p "Enter choice [0-6, L]: " choice
 
   case "$choice" in
     0)
@@ -531,6 +544,10 @@ LEFT JOIN kv_pairs ON kv_pairs.key = column_info.name;
 .quit
 SQL
       echo "Result: $output_file"
+      ;;
+    6)
+      echo "--- Open DuckDB UI ---"
+      duckdb -ui "$LOCAL_DB_PATH"
       ;;
     *)
       echo "Invalid choice: $choice"
