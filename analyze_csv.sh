@@ -212,7 +212,7 @@ INSTALL excel;
 LOAD excel;
 CREATE OR REPLACE VIEW v_all AS
 SELECT *
-FROM read_xlsx('$SRC_ESCAPED'${SHEET_CLAUSE}, header = true);
+FROM read_xlsx('$SRC_ESCAPED'${SHEET_CLAUSE}, header = true, ignore_errors = true);
 SQL
   else
     cat <<SQL
