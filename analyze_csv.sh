@@ -90,12 +90,25 @@ GEMINI_MODEL="models/gemini-2.5-flash"
 # https://generativelanguage.googleapis.com/v1beta/{model}:generateContent
 GEMINI_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent"
 
+RESPONSE_SCHEMA=$(cat <<'JSON'
+{
+  "type": "object",
+  "properties": {
+    "needs_clarification": {"type": "boolean"},
+    "clarifying_question": {"type": "string", "nullable": true},
+    "sql": {"type": "string", "nullable": true}
+  },
+  "required": ["needs_clarification", "clarifying_question", "sql"]
+}
+JSON
+)
+
 # Function to log and also echo a message
 note () { echo "$*" | tee -a "$ANALYSIS_LOG" >/dev/null; }
 sql_quote() { printf "%s" "$1" | sed "s/'/''/g"; }
 
 strip_code_fences() {
-  python3 - <<'PY'
+  python3 -c '
 import sys
 
 text = sys.stdin.read()
@@ -112,7 +125,7 @@ if text.startswith("```"):
     text = "\n".join(lines).strip()
 
 sys.stdout.write(text)
-PY
+'
 }
 
 exec > >(tee -a "$LOGFILE") 2>&1
@@ -347,7 +360,23 @@ INSTRUCTION
           --arg inst "$instruction" \
           --arg cols "$columns_text" \
           --arg req "$request_text" \
-          '{contents:[{parts:[{text:($inst + "\n\n" + $cols + "\n\n" + $req)}]}]}' )
+          --argjson schema "$RESPONSE_SCHEMA" \
+          '{
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: ($inst + "\n\n" + $cols + "\n\n" + $req)
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: $schema
+            }
+          }' )
 
         echo "=== Will send to LLM ==="
         echo "API Key: $GEMINI_API_KEY"
@@ -379,7 +408,55 @@ INSTRUCTION
           break
         fi
 
-        generated=$(echo "$response_body" | jq -r '.candidates[0].content.parts[0].text // .candidates[0].content // .candidates[0].text // .result')
+        generated=$(RESPONSE_BODY="$response_body" python3 - <<'PY'
+import base64
+import json
+import os
+import sys
+
+raw_body = os.environ.get("RESPONSE_BODY", "")
+if not raw_body.strip():
+    sys.exit(0)
+
+try:
+    data = json.loads(raw_body)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+def iter_text_parts(response):
+    for candidate in response.get("candidates", []) or []:
+        content = candidate.get("content") or {}
+        for part in content.get("parts") or []:
+            text = part.get("text")
+            if isinstance(text, str) and text.strip():
+                yield text
+            inline = part.get("inlineData") or part.get("inline_data")
+            if isinstance(inline, dict):
+                data_field = inline.get("data")
+                if not data_field:
+                    continue
+                try:
+                    decoded = base64.b64decode(data_field).decode("utf-8", "ignore")
+                except Exception:
+                    continue
+                if decoded.strip():
+                    yield decoded
+            fn_call = part.get("functionCall") or part.get("function_call")
+            if isinstance(fn_call, dict):
+                args = fn_call.get("args")
+                if isinstance(args, str) and args.strip():
+                    yield args
+                elif isinstance(args, dict):
+                    yield json.dumps(args)
+    fallback_text = response.get("outputText")
+    if isinstance(fallback_text, str) and fallback_text.strip():
+        yield fallback_text
+
+for item in iter_text_parts(data):
+    sys.stdout.write(item)
+    break
+PY
+)
         generated=$(printf '%s' "$generated" | strip_code_fences)
         if [[ -z "$generated" ]]; then
           echo "ERROR: LLM response did not include text content."
