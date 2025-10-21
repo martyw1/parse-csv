@@ -16,6 +16,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGFILE="$SCRIPT_DIR/script-run.log"
 ANALYSIS_LOG="$SCRIPT_DIR/analysis-results.log"
+MERGE_LOG="$SCRIPT_DIR/merge-summary.log"
 OUTDIR="$SCRIPT_DIR/output"
 
 LOCAL_DB_PATH="$SCRIPT_DIR/local.duckdb"
@@ -76,6 +77,7 @@ print_title_box() {
   printf 'Session started: %s\n' "$(date)"
   printf 'Run log: %s\n' "$LOGFILE"
   printf 'Analysis log: %s\n' "$ANALYSIS_LOG"
+  printf 'Merge summary log: %s\n' "$MERGE_LOG"
   echo
 }
 
@@ -106,6 +108,16 @@ JSON
 # Function to log and also echo a message
 note () { echo "$*" | tee -a "$ANALYSIS_LOG" >/dev/null; }
 sql_quote() { printf "%s" "$1" | sed "s/'/''/g"; }
+
+normalize_column_name() {
+  local raw="$1"
+  printf "%s" "$raw" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'
+}
+
+log_merge() {
+  local message="$1"
+  printf "%s\n" "$message" | tee -a "$MERGE_LOG"
+}
 
 strip_code_fences() {
   python3 -c '
@@ -141,59 +153,6 @@ check_dependency curl
 check_dependency python3
 echo
 
-DEFAULT_INPUT="${1:-}"
-
-if [[ -n "$DEFAULT_INPUT" ]]; then
-  if [[ "$DEFAULT_INPUT" == /* ]]; then
-    SRC="$DEFAULT_INPUT"
-  else
-    SRC="$SCRIPT_DIR/$DEFAULT_INPUT"
-  fi
-  if [[ ! -f "$SRC" ]]; then
-    echo "ERROR: Provided dataset file not found: $DEFAULT_INPUT"
-    exit 1
-  fi
-  SRC_BASENAME="$(basename "$SRC")"
-else
-  DATASET_FILES=()
-  while IFS= read -r dataset_file; do
-    DATASET_FILES+=("$dataset_file")
-  done < <({
-    find "$SCRIPT_DIR" -type f -iname '*.csv'
-    find "$SCRIPT_DIR" -type f -iname '*.xlsx'
-    find "$SCRIPT_DIR" -type f -iname '*.xls'
-    find "$SCRIPT_DIR" -type f -iname '*.txt'
-  } | sort -u)
-
-  if (( ${#DATASET_FILES[@]} == 0 )); then
-    echo "ERROR: No dataset files (.csv, .xlsx, .xls, .txt) found in $SCRIPT_DIR"
-    exit 1
-  fi
-
-  while true; do
-    echo "Available dataset files:"
-    for idx in "${!DATASET_FILES[@]}"; do
-      display_name="${DATASET_FILES[$idx]#"$SCRIPT_DIR"/}"
-      printf '  %2d) %s\n' "$((idx + 1))" "${display_name:-$(basename "${DATASET_FILES[$idx]}")}"
-    done
-    read -r -p "Select dataset file [1-${#DATASET_FILES[@]}]: " selection
-
-    if [[ "$selection" =~ ^[0-9]+$ ]]; then
-      selection=$((selection))
-      if (( selection >= 1 && selection <= ${#DATASET_FILES[@]} )); then
-        SRC="${DATASET_FILES[selection-1]}"
-        SRC_BASENAME="$(basename "$SRC")"
-        break
-      fi
-    fi
-    echo "Invalid selection. Please choose a number between 1 and ${#DATASET_FILES[@]}."
-  done
-fi
-
-EXCEL_SHEET="${2:-}"
-
-mkdir -p "$OUTDIR"
-
 make_output_file() {
   local menu_choice="$1"
   local timestamp
@@ -214,51 +173,501 @@ COL_OWNER="OwnerName"
 COL_LAND_CODE="LandCode"
 COL_TOTAL_VALUE="TotalLivingArea"
 
-EXT="${SRC##*.}"
-EXT_LOWER="$(printf "%s" "$EXT" | tr '[:upper:]' '[:lower:]')"
-SRC_ESCAPED="$(sql_quote "$SRC")"
+make_load_prelude() {
+  local needs_excel=0
+  local union_sql=""
 
-if [[ "$EXT_LOWER" == "xlsx" ]]; then
-  if [[ -z "$EXCEL_SHEET" ]]; then
-    read -r -p "Enter Excel sheet name or index to load (press Enter for the first sheet): " EXCEL_SHEET
-  else
-    read -r -p "Enter Excel sheet name or index to load (press Enter to use '$EXCEL_SHEET'): " sheet_input
-    if [[ -n "$sheet_input" ]]; then
-      EXCEL_SHEET="$sheet_input"
+  for file_path in "${SELECTED_FILES[@]}"; do
+    local ext="${file_path##*.}"
+    local ext_lower
+    ext_lower="$(printf "%s" "$ext" | tr '[:upper:]' '[:lower:]')"
+    local file_escaped
+    file_escaped="$(sql_quote "$file_path")"
+    local display_name
+    display_name="${file_path#"$SCRIPT_DIR"/}"
+    [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+    local display_name_escaped
+    display_name_escaped="$(sql_quote "$display_name")"
+    local select_stmt
+
+    if [[ "$ext_lower" == "xlsx" || "$ext_lower" == "xls" ]]; then
+      needs_excel=1
+      local sheet_clause=""
+      local sheet_value="${FILE_SHEETS[$file_path]-}"
+      if [[ -n "$sheet_value" ]]; then
+        if [[ "$sheet_value" =~ ^[0-9]+$ ]]; then
+          sheet_clause=", sheet = $sheet_value"
+        else
+          sheet_clause=", sheet = '$(sql_quote "$sheet_value")'"
+        fi
+      fi
+      select_stmt="SELECT *, '${display_name_escaped}' AS __source_file FROM read_xlsx('${file_escaped}'${sheet_clause}, header = true, ignore_errors = true)"
+    else
+      select_stmt="SELECT *, '${display_name_escaped}' AS __source_file FROM read_csv_auto('${file_escaped}', header = true, sample_size = -1, nullstr = '', all_varchar = true)"
     fi
+
+    if [[ -z "$union_sql" ]]; then
+      union_sql="  $select_stmt"
+    else
+      printf -v union_sql '%s\nUNION ALL BY NAME\n  %s' "$union_sql" "$select_stmt"
+    fi
+  done
+
+  local excel_setup=""
+  if (( needs_excel )); then
+    excel_setup=$'INSTALL excel;\nLOAD excel;'
   fi
+
+  cat <<SQL
+PRAGMA disable_progress_bar;
+SET threads TO 4;
+$excel_setup
+CREATE OR REPLACE VIEW v_all AS
+WITH unioned AS (
+$union_sql
+)
+SELECT * FROM unioned;
+SQL
+}
+
+declare -a PROPERTY_LISTING_COLUMNS=(
+  "ListingID|VARCHAR(50)"
+  "County|VARCHAR(50)"
+  "StateAbbrev|CHAR(2)"
+  "ParcelId|VARCHAR(50)"
+  "STRAP|VARCHAR(50)"
+  "Folio|VARCHAR(50)"
+  "FolioID|VARCHAR(50)"
+  "SiteStreetAddress|VARCHAR(200)"
+  "SiteStreetNumber|VARCHAR(50)"
+  "SiteStreetName|VARCHAR(100)"
+  "SiteStreetType|VARCHAR(50)"
+  "SiteStreetOrdinal|VARCHAR(50)"
+  "SiteUnit|VARCHAR(50)"
+  "SiteCity|VARCHAR(100)"
+  "SiteZipCode|VARCHAR(20)"
+  "SubdivisionCondoNum|VARCHAR(50)"
+  "MapNumber|VARCHAR(50)"
+  "BlockBldg|VARCHAR(50)"
+  "LotUnit|VARCHAR(50)"
+  "Section|VARCHAR(50)"
+  "Township|VARCHAR(50)"
+  "Range|VARCHAR(50)"
+  "TotalAcres|DECIMAL(18,6)"
+  "TaxYear|INT"
+  "RollType|VARCHAR(50)"
+  "UseCode|VARCHAR(50)"
+  "ClassCode|VARCHAR(50)"
+  "StrapNumber|VARCHAR(50)"
+  "OwnerLine1|VARCHAR(200)"
+  "OwnerLine2|VARCHAR(200)"
+  "OwnerLine3|VARCHAR(200)"
+  "OwnerLine4|VARCHAR(200)"
+  "OwnerLine5|VARCHAR(200)"
+  "OwnerName|VARCHAR(200)"
+  "OwnerCountry|VARCHAR(100)"
+  "OwnerCity|VARCHAR(100)"
+  "OwnerState|VARCHAR(50)"
+  "OwnerZip|VARCHAR(20)"
+  "OwnerZipPlus4|VARCHAR(10)"
+  "OwnerForeignMailCode|VARCHAR(50)"
+  "Others|VARCHAR(200)"
+  "CareOf|VARCHAR(200)"
+  "OwnerAddress1|VARCHAR(200)"
+  "OwnerAddress2|VARCHAR(200)"
+  "ImprovementCode|VARCHAR(50)"
+  "ImprovementDescription|VARCHAR(200)"
+  "DORCode|VARCHAR(50)"
+  "DORDescription|VARCHAR(200)"
+  "LegalDescription|TEXT"
+  "JustValue|DECIMAL(18,2)"
+  "LandJustValue|DECIMAL(18,2)"
+  "ImprovementsJustValue|DECIMAL(18,2)"
+  "TotalJustValue|DECIMAL(18,2)"
+  "LandValue|DECIMAL(18,2)"
+  "BuildingValue|DECIMAL(18,2)"
+  "HeatedArea|DECIMAL(18,2)"
+  "GrossArea|DECIMAL(18,2)"
+  "TotalLivingArea|DECIMAL(18,2)"
+  "LandArea|DECIMAL(18,2)"
+  "Bathrooms|DECIMAL(5,2)"
+  "YearBuilt|INT"
+  "Pool|VARCHAR(50)"
+  "ORNumber|VARCHAR(50)"
+  "SaleDate|DATE"
+  "SaleAmount|DECIMAL(18,2)"
+  "SOHBenefit|DECIMAL(18,2)"
+  "NonSchool10PctBenefit|DECIMAL(18,2)"
+  "AgriculturalClassBenefit|DECIMAL(18,2)"
+  "CountyAssessedValue|DECIMAL(18,2)"
+  "SchoolAssessedValue|DECIMAL(18,2)"
+  "MunicipalAssessedValue|DECIMAL(18,2)"
+  "OtherAssessedValue|DECIMAL(18,2)"
+  "HmstdExemptAmount|DECIMAL(18,2)"
+  "NonSchoolAddHmstdExemptAmount|DECIMAL(18,2)"
+  "CountySeniorExemptAmount|DECIMAL(18,2)"
+  "MunicipalSeniorExemptAmount|DECIMAL(18,2)"
+  "CountyLongTermSeniorExemptAmount|DECIMAL(18,2)"
+  "DisabledExemptPct|DECIMAL(5,2)"
+  "DisabledExemptCode|VARCHAR(50)"
+  "DisabledExemptDesc|VARCHAR(200)"
+  "DisabledExemptAmount|DECIMAL(18,2)"
+  "CivExemptAmount|DECIMAL(18,2)"
+  "VetExemptAmount|DECIMAL(18,2)"
+  "WidowExemptAmount|DECIMAL(18,2)"
+  "BlindExemptAmount|DECIMAL(18,2)"
+  "WhollyExemptPct|DECIMAL(5,2)"
+  "WhollyExemptCode|VARCHAR(50)"
+  "WhollyExemptDesc|VARCHAR(200)"
+  "NonSchoolWhollyExemptAmount|DECIMAL(18,2)"
+  "SchoolWhollyExemptAmount|DECIMAL(18,2)"
+  "DisableVetExemptPct|DECIMAL(5,2)"
+  "CountyDisabledVetExemptAmount|DECIMAL(18,2)"
+  "SchoolDisabledVetExemptAmount|DECIMAL(18,2)"
+  "MunicipalDisabledVetExemptAmount|DECIMAL(18,2)"
+  "OtherDisabledVetExemptAmount|DECIMAL(18,2)"
+  "DeployedExemptPct|DECIMAL(5,2)"
+  "CountyDeployedExemptAmount|DECIMAL(18,2)"
+  "SchoolDeployedExemptAmount|DECIMAL(18,2)"
+  "MunicipalDeployedExemptAmount|DECIMAL(18,2)"
+  "OtherDeployedExemptAmount|DECIMAL(18,2)"
+  "AfdHsgExemptPct|DECIMAL(5,2)"
+  "CountyAfdHsgExemptAmount|DECIMAL(18,2)"
+  "SchoolAfdHsgExemptAmount|DECIMAL(18,2)"
+  "MunicipalAfdHsgExemptAmount|DECIMAL(18,2)"
+  "OtherAfdHsgExemptAmount|DECIMAL(18,2)"
+  "CountyTaxableValue|DECIMAL(18,2)"
+  "SchoolTaxableValue|DECIMAL(18,2)"
+  "MunicipalTaxableValue|DECIMAL(18,2)"
+  "OtherTaxableValue|DECIMAL(18,2)"
+  "MillageArea|VARCHAR(50)"
+  "CountyMillage|DECIMAL(8,4)"
+  "SchoolMillage|DECIMAL(8,4)"
+  "MunicipalMillage|DECIMAL(8,4)"
+  "OtherMillage|DECIMAL(8,4)"
+  "CountyTaxes|DECIMAL(18,2)"
+  "SchoolTaxes|DECIMAL(18,2)"
+  "MunicipalTaxes|DECIMAL(18,2)"
+  "OtherTaxes|DECIMAL(18,2)"
+  "TotalAdvTaxes|DECIMAL(18,2)"
+  "TotalNadvTaxes|DECIMAL(18,2)"
+  "TotalTaxes|DECIMAL(18,2)"
+  "GisFlnNum|VARCHAR(50)"
+  "RowCheckSum|BIGINT"
+  "CreatedAt|TIMESTAMP"
+  "UpdatedAt|TIMESTAMP"
+)
+
+declare -A PROPERTY_LISTING_ALIAS_MAP=(
+  [county]="countyname"
+  [stateabbrev]="state|stateabbr|stateabbreviation|state_abbrev"
+  [parcelid]="parcel|parcel_id|parcelnumber"
+  [strap]="strapid|strap_id"
+  [strapnumber]="strap|strapnum|strap_number"
+  [sitestreetaddress]="situsaddress|address"
+  [sitestreetnumber]="sitenumber|streetnumber"
+  [sitestreetname]="streetname"
+  [sitecity]="city|sitecityname"
+  [sitezipcode]="sitezip|site_zip|sitezipcode|site_zipcode|zipcode|zip"
+  [ownername]="owner|owner_full_name"
+  [owneraddress1]="owneraddr1|owner_address1"
+  [owneraddress2]="owneraddr2|owner_address2"
+  [ownerzip]="ownerpostalcode|owner_zip"
+  [ownerzipplus4]="ownerzip4|owner_zip_plus4"
+  [justvalue]="marketvalue|just_value"
+  [landjustvalue]="landmarketvalue"
+  [improvementsjustvalue]="buildingjustvalue|improvementvalue"
+  [landvalue]="landmarketvalue|land_cost"
+  [buildingvalue]="buildingmarketvalue|improvementsvalue"
+  [heatedarea]="heatedsqft|heated_area"
+  [grossarea]="grosssqft|gross_area"
+  [totallivingarea]="livingarea|total_living_area|heatedsqft"
+  [landarea]="land_sqft|land_square_feet"
+  [bathrooms]="baths|numberofbaths"
+  [yearbuilt]="year_build|built_year"
+  [pool]="poolflag|poolyn"
+  [ornumber]="bookpage|orbookpage"
+  [saledate]="salesdate|closingdate|dateofsale"
+  [saleamount]="saleprice|salesprice|price"
+  [millagearea]="millagedistrict"
+  [gisflnnum]="gisid|gisnumber"
+)
+
+declare -a MERGE_MAPPED_FIELDS=()
+declare -a MERGE_DEFAULTED_FIELDS=()
+
+property_listing_create_sql() {
+  cat <<'SQL'
+CREATE TABLE PropertyListing (
+    ListingID           VARCHAR(50)     PRIMARY KEY,
+    County              VARCHAR(50)     NOT NULL,
+    StateAbbrev         CHAR(2)         NOT NULL,
+    ParcelId            VARCHAR(50),
+    STRAP               VARCHAR(50),
+    Folio               VARCHAR(50),
+    FolioID             VARCHAR(50),
+    SiteStreetAddress   VARCHAR(200),
+    SiteStreetNumber    VARCHAR(50),
+    SiteStreetName      VARCHAR(100),
+    SiteStreetType      VARCHAR(50),
+    SiteStreetOrdinal   VARCHAR(50),
+    SiteUnit            VARCHAR(50),
+    SiteCity            VARCHAR(100),
+    SiteZipCode         VARCHAR(20),
+    SubdivisionCondoNum VARCHAR(50),
+    MapNumber           VARCHAR(50),
+    BlockBldg           VARCHAR(50),
+    LotUnit             VARCHAR(50),
+    Section             VARCHAR(50),
+    Township            VARCHAR(50),
+    Range               VARCHAR(50),
+    TotalAcres          DECIMAL(18,6),
+    TaxYear             INT,
+    RollType            VARCHAR(50),
+    UseCode             VARCHAR(50),
+    ClassCode           VARCHAR(50),
+    StrapNumber         VARCHAR(50),
+    OwnerLine1          VARCHAR(200),
+    OwnerLine2          VARCHAR(200),
+    OwnerLine3          VARCHAR(200),
+    OwnerLine4          VARCHAR(200),
+    OwnerLine5          VARCHAR(200),
+    OwnerName           VARCHAR(200),
+    OwnerCountry        VARCHAR(100),
+    OwnerCity           VARCHAR(100),
+    OwnerState          VARCHAR(50),
+    OwnerZip            VARCHAR(20),
+    OwnerZipPlus4       VARCHAR(10),
+    OwnerForeignMailCode VARCHAR(50),
+    Others              VARCHAR(200),
+    CareOf              VARCHAR(200),
+    OwnerAddress1       VARCHAR(200),
+    OwnerAddress2       VARCHAR(200),
+    ImprovementCode         VARCHAR(50),
+    ImprovementDescription  VARCHAR(200),
+    DORCode                 VARCHAR(50),
+    DORDescription          VARCHAR(200),
+    LegalDescription        TEXT,
+    JustValue           DECIMAL(18,2),
+    LandJustValue       DECIMAL(18,2),
+    ImprovementsJustValue DECIMAL(18,2),
+    TotalJustValue      DECIMAL(18,2),
+    LandValue           DECIMAL(18,2),
+    BuildingValue       DECIMAL(18,2),
+    HeatedArea          DECIMAL(18,2),
+    GrossArea           DECIMAL(18,2),
+    TotalLivingArea     DECIMAL(18,2),
+    LandArea            DECIMAL(18,2),
+    Bathrooms           DECIMAL(5,2),
+    YearBuilt           INT,
+    Pool                VARCHAR(50),
+    ORNumber            VARCHAR(50),
+    SaleDate            DATE,
+    SaleAmount          DECIMAL(18,2),
+    SOHBenefit                 DECIMAL(18,2),
+    NonSchool10PctBenefit       DECIMAL(18,2),
+    AgriculturalClassBenefit    DECIMAL(18,2),
+    CountyAssessedValue       DECIMAL(18,2),
+    SchoolAssessedValue       DECIMAL(18,2),
+    MunicipalAssessedValue    DECIMAL(18,2),
+    OtherAssessedValue        DECIMAL(18,2),
+    HmstdExemptAmount              DECIMAL(18,2),
+    NonSchoolAddHmstdExemptAmount  DECIMAL(18,2),
+    CountySeniorExemptAmount       DECIMAL(18,2),
+    MunicipalSeniorExemptAmount    DECIMAL(18,2),
+    CountyLongTermSeniorExemptAmount DECIMAL(18,2),
+    DisabledExemptPct             DECIMAL(5,2),
+    DisabledExemptCode            VARCHAR(50),
+    DisabledExemptDesc            VARCHAR(200),
+    DisabledExemptAmount           DECIMAL(18,2),
+    CivExemptAmount                DECIMAL(18,2),
+    VetExemptAmount                DECIMAL(18,2),
+    WidowExemptAmount              DECIMAL(18,2),
+    BlindExemptAmount              DECIMAL(18,2),
+    WhollyExemptPct              DECIMAL(5,2),
+    WhollyExemptCode             VARCHAR(50),
+    WhollyExemptDesc             VARCHAR(200),
+    NonSchoolWhollyExemptAmount   DECIMAL(18,2),
+    SchoolWhollyExemptAmount      DECIMAL(18,2),
+    DisableVetExemptPct            DECIMAL(5,2),
+    CountyDisabledVetExemptAmount  DECIMAL(18,2),
+    SchoolDisabledVetExemptAmount  DECIMAL(18,2),
+    MunicipalDisabledVetExemptAmount DECIMAL(18,2),
+    OtherDisabledVetExemptAmount    DECIMAL(18,2),
+    DeployedExemptPct              DECIMAL(5,2),
+    CountyDeployedExemptAmount      DECIMAL(18,2),
+    SchoolDeployedExemptAmount      DECIMAL(18,2),
+    MunicipalDeployedExemptAmount   DECIMAL(18,2),
+    OtherDeployedExemptAmount       DECIMAL(18,2),
+    AfdHsgExemptPct                 DECIMAL(5,2),
+    CountyAfdHsgExemptAmount        DECIMAL(18,2),
+    SchoolAfdHsgExemptAmount        DECIMAL(18,2),
+    MunicipalAfdHsgExemptAmount     DECIMAL(18,2),
+    OtherAfdHsgExemptAmount         DECIMAL(18,2),
+    CountyTaxableValue         DECIMAL(18,2),
+    SchoolTaxableValue          DECIMAL(18,2),
+    MunicipalTaxableValue       DECIMAL(18,2),
+    OtherTaxableValue           DECIMAL(18,2),
+    MillageArea               VARCHAR(50),
+    CountyMillage             DECIMAL(8,4),
+    SchoolMillage             DECIMAL(8,4),
+    MunicipalMillage          DECIMAL(8,4),
+    OtherMillage              DECIMAL(8,4),
+    CountyTaxes              DECIMAL(18,2),
+    SchoolTaxes              DECIMAL(18,2),
+    MunicipalTaxes           DECIMAL(18,2),
+    OtherTaxes               DECIMAL(18,2),
+    TotalAdvTaxes            DECIMAL(18,2),
+    TotalNadvTaxes           DECIMAL(18,2),
+    TotalTaxes               DECIMAL(18,2),
+    GisFlnNum            VARCHAR(50),
+    RowCheckSum          BIGINT,
+    CreatedAt            TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt            TIMESTAMP        DEFAULT CURRENT_TIMESTAMP
+);
+SQL
+}
+
+RAW_TOTAL_ROWS=0
+RAW_TOTAL_COLUMNS=0
+PROPERTY_TOTAL_ROWS=0
+PROPERTY_TOTAL_COLUMNS=0
+
+DEFAULT_INPUT="${1:-}"
+DEFAULT_EXCEL_SHEET="${2:-}"
+
+declare -a SELECTED_FILES=()
+declare -A FILE_SHEETS=()
+
+if [[ -n "$DEFAULT_INPUT" ]]; then
+  if [[ "$DEFAULT_INPUT" == /* ]]; then
+    resolved_path="$DEFAULT_INPUT"
+  else
+    resolved_path="$SCRIPT_DIR/$DEFAULT_INPUT"
+  fi
+  if [[ ! -f "$resolved_path" ]]; then
+    echo "ERROR: Provided dataset file not found: $DEFAULT_INPUT"
+    exit 1
+  fi
+  SELECTED_FILES+=("$resolved_path")
+
+  ext="${resolved_path##*.}"
+  ext_lower="$(printf "%s" "$ext" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$ext_lower" == "xlsx" || "$ext_lower" == "xls" ]]; then
+    sheet_choice="$DEFAULT_EXCEL_SHEET"
+    if [[ -z "$sheet_choice" ]]; then
+      read -r -p "Enter Excel sheet name or index to load (press Enter for the first sheet): " sheet_choice
+    else
+      read -r -p "Enter Excel sheet name or index to load (press Enter to use '$sheet_choice'): " sheet_input
+      if [[ -n "$sheet_input" ]]; then
+        sheet_choice="$sheet_input"
+      fi
+    fi
+    FILE_SHEETS["$resolved_path"]="$sheet_choice"
+  fi
+else
+  DATASET_FILES=()
+  while IFS= read -r dataset_file; do
+    DATASET_FILES+=("$dataset_file")
+  done < <({
+    find "$SCRIPT_DIR" -type f -iname '*.csv'
+    find "$SCRIPT_DIR" -type f -iname '*.xlsx'
+    find "$SCRIPT_DIR" -type f -iname '*.xls'
+    find "$SCRIPT_DIR" -type f -iname '*.txt'
+  } | sort -u)
+
+  if (( ${#DATASET_FILES[@]} == 0 )); then
+    echo "ERROR: No dataset files (.csv, .xlsx, .xls, .txt) found in $SCRIPT_DIR"
+    exit 1
+  fi
+
+  while true; do
+    echo "Available dataset files:"
+    for idx in "${!DATASET_FILES[@]}"; do
+      display_name="${DATASET_FILES[$idx]#"$SCRIPT_DIR"/}"
+      printf '  %2d) %s\n' "$((idx + 1))" "${display_name:-$(basename "${DATASET_FILES[$idx]}")}" 
+    done
+    echo "You may select multiple files separated by spaces or commas (e.g., 1 2 5)."
+    read -r -p "Select dataset file(s) [1-${#DATASET_FILES[@]}]: " selection
+
+    selection="${selection//,/ }"
+    selection="${selection//;/ }"
+    selection="${selection//:/ }"
+    selection="${selection//$'\t'/ }"
+    selection="$(printf '%s' "$selection" | xargs 2>/dev/null || true)"
+
+    if [[ -z "$selection" ]]; then
+      echo "No selection detected. Please choose at least one dataset."
+      continue
+    fi
+
+    IFS=' ' read -r -a selection_parts <<< "$selection"
+    declare -A seen_indices=()
+    valid=true
+    SELECTED_FILES=()
+    for token in "${selection_parts[@]}"; do
+      if [[ ! "$token" =~ ^[0-9]+$ ]]; then
+        valid=false
+        break
+      fi
+      numeric=$((token))
+      if (( numeric < 1 || numeric > ${#DATASET_FILES[@]} )); then
+        valid=false
+        break
+      fi
+      if [[ -z "${seen_indices[$numeric]-}" ]]; then
+        seen_indices[$numeric]=1
+        SELECTED_FILES+=("${DATASET_FILES[numeric-1]}")
+      fi
+    done
+
+    if ! $valid; then
+      echo "Invalid selection. Please choose numbers between 1 and ${#DATASET_FILES[@]}."
+      SELECTED_FILES=()
+      continue
+    fi
+
+    if (( ${#SELECTED_FILES[@]} == 0 )); then
+      echo "No dataset files selected."
+      continue
+    fi
+
+    break
+  done
+
+  for file_path in "${SELECTED_FILES[@]}"; do
+    ext="${file_path##*.}"
+    ext_lower="$(printf "%s" "$ext" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$ext_lower" == "xlsx" || "$ext_lower" == "xls" ]]; then
+      display_name="${file_path#"$SCRIPT_DIR"/}"
+      [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+      read -r -p "Enter Excel sheet for '$display_name' (press Enter for the first sheet): " sheet_choice
+      FILE_SHEETS["$file_path"]="$sheet_choice"
+    fi
+  done
 fi
 
-make_load_prelude() {
-  if [[ "$EXT_LOWER" == "xlsx" ]]; then
-    if [[ -n "$EXCEL_SHEET" ]]; then
-      if [[ "$EXCEL_SHEET" =~ ^[0-9]+$ ]]; then
-        SHEET_CLAUSE=", sheet = $EXCEL_SHEET"
-      else
-        SHEET_CLAUSE=", sheet = '$(sql_quote "$EXCEL_SHEET")'"
-      fi
+mkdir -p "$OUTDIR"
+: > "$MERGE_LOG"
+
+echo "Selected dataset files:"
+for file_path in "${SELECTED_FILES[@]}"; do
+  display_name="${file_path#"$SCRIPT_DIR"/}"
+  [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+  ext="${file_path##*.}"
+  ext_lower="$(printf "%s" "$ext" | tr '[:upper:]' '[:lower:]')"
+  sheet_note=""
+  if [[ "$ext_lower" == "xlsx" || "$ext_lower" == "xls" ]]; then
+    sheet_value="${FILE_SHEETS[$file_path]-}"
+    if [[ -n "$sheet_value" ]]; then
+      sheet_note=" (sheet: $sheet_value)"
     else
-      SHEET_CLAUSE=""
+      sheet_note=" (sheet: <first>)"
     fi
-    cat <<SQL
-PRAGMA disable_progress_bar;
-SET threads TO 4;
-INSTALL excel;
-LOAD excel;
-CREATE OR REPLACE VIEW v_all AS
-SELECT *
-FROM read_xlsx('$SRC_ESCAPED'${SHEET_CLAUSE}, header = true, ignore_errors = true);
-SQL
-  else
-    cat <<SQL
-PRAGMA disable_progress_bar;
-SET threads TO 4;
-CREATE OR REPLACE VIEW v_all AS
-SELECT *
-FROM read_csv_auto('$SRC_ESCAPED', header = true, sample_size = -1, nullstr = '');
-SQL
   fi
-}
+  printf '  - %s%s\n' "$display_name" "$sheet_note"
+done
+echo
 
 load_dataset_into_local_db() {
   echo "Preparing local DuckDB database at $LOCAL_DB_PATH..."
@@ -272,7 +681,237 @@ SQL
   echo "Local DuckDB database ready."
 }
 
+rationalize_dataset() {
+  echo "Rationalizing source data into the PropertyListing schema..."
+
+  mapfile -t source_columns < <(duckdb "$LOCAL_DB_PATH" <<SQL
+.headers off
+.mode list
+SELECT lower(name) || '=' || name
+FROM pragma_table_info('$LOCAL_TABLE_NAME');
+.quit
+SQL
+  )
+
+  declare -A SOURCE_COLUMN_LOOKUP=()
+  for entry in "${source_columns[@]}"; do
+    [[ -z "$entry" ]] && continue
+    local original="${entry#*=}"
+    local normalized
+    normalized="$(normalize_column_name "$original")"
+    [[ -z "$normalized" ]] && continue
+    if [[ -z "${SOURCE_COLUMN_LOOKUP[$normalized]-}" ]]; then
+      SOURCE_COLUMN_LOOKUP["$normalized"]="$original"
+    fi
+  done
+
+  MERGE_MAPPED_FIELDS=()
+  MERGE_DEFAULTED_FIELDS=()
+
+  local select_body=""
+  local column_list=""
+
+  for column_def in "${PROPERTY_LISTING_COLUMNS[@]}"; do
+    IFS='|' read -r column_name column_type <<< "$column_def"
+    local normalized_target
+    normalized_target="$(normalize_column_name "$column_name")"
+
+    local candidates=("$normalized_target")
+    if [[ -n "${PROPERTY_LISTING_ALIAS_MAP[$normalized_target]-}" ]]; then
+      IFS='|' read -r -a alias_candidates <<< "${PROPERTY_LISTING_ALIAS_MAP[$normalized_target]}"
+      candidates+=("${alias_candidates[@]}")
+    fi
+
+    local found=""
+    for candidate in "${candidates[@]}"; do
+      local candidate_norm
+      candidate_norm="$(normalize_column_name "$candidate")"
+      local actual="${SOURCE_COLUMN_LOOKUP[$candidate_norm]-}"
+      if [[ -n "$actual" ]]; then
+        found="$actual"
+        break
+      fi
+    done
+
+    local expr=""
+    local upper_type
+    upper_type="$(printf '%s' "$column_type" | tr '[:lower:]' '[:upper:]')"
+
+    case "$column_name" in
+      ListingID)
+        if [[ -n "$found" ]]; then
+          expr="COALESCE(NULLIF(TRIM(CAST(src.\"$found\" AS VARCHAR)), ''), printf('PL-%010d', src.__row_num)) AS \"$column_name\""
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found (fallback to generated ID)")
+        else
+          expr="printf('PL-%010d', src.__row_num) AS \"$column_name\""
+          MERGE_DEFAULTED_FIELDS+=("$column_name (generated internal ID)")
+        fi
+        ;;
+      CreatedAt)
+        if [[ -n "$found" ]]; then
+          expr="COALESCE(TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS TIMESTAMP), CURRENT_TIMESTAMP) AS \"$column_name\""
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found (default CURRENT_TIMESTAMP)")
+        else
+          expr="CURRENT_TIMESTAMP AS \"$column_name\""
+          MERGE_DEFAULTED_FIELDS+=("$column_name (default CURRENT_TIMESTAMP)")
+        fi
+        ;;
+      UpdatedAt)
+        if [[ -n "$found" ]]; then
+          expr="COALESCE(TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS TIMESTAMP), CURRENT_TIMESTAMP) AS \"$column_name\""
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found (default CURRENT_TIMESTAMP)")
+        else
+          expr="CURRENT_TIMESTAMP AS \"$column_name\""
+          MERGE_DEFAULTED_FIELDS+=("$column_name (default CURRENT_TIMESTAMP)")
+        fi
+        ;;
+      *)
+        if [[ -n "$found" ]]; then
+          if [[ "$upper_type" =~ ^(VARCHAR|CHAR|TEXT) ]]; then
+            expr="NULLIF(TRIM(CAST(src.\"$found\" AS $column_type)), '') AS \"$column_name\""
+          elif [[ "$upper_type" == "DATE" ]]; then
+            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS DATE) AS \"$column_name\""
+          elif [[ "$upper_type" == "TIMESTAMP" ]]; then
+            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS TIMESTAMP) AS \"$column_name\""
+          else
+            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS $column_type) AS \"$column_name\""
+          fi
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found")
+        else
+          if [[ "$upper_type" == "TIMESTAMP" ]]; then
+            expr="CAST(NULL AS TIMESTAMP) AS \"$column_name\""
+          else
+            expr="CAST(NULL AS $column_type) AS \"$column_name\""
+          fi
+          MERGE_DEFAULTED_FIELDS+=("$column_name")
+        fi
+        ;;
+    esac
+
+    if [[ -z "$select_body" ]]; then
+      select_body="  $expr"
+    else
+      select_body="$select_body,"$'\n'"  $expr"
+    fi
+
+    if [[ -z "$column_list" ]]; then
+      column_list="  \"$column_name\""
+    else
+      column_list="$column_list,"$'\n'"  \"$column_name\""
+    fi
+  done
+
+  local create_sql
+  create_sql="$(property_listing_create_sql)"
+
+  duckdb "$LOCAL_DB_PATH" <<SQL
+BEGIN TRANSACTION;
+DROP VIEW IF EXISTS v_property_listing;
+DROP TABLE IF EXISTS PropertyListing;
+$create_sql
+INSERT INTO PropertyListing (
+$column_list
+)
+SELECT
+$select_body
+FROM (
+  SELECT sd.*, ROW_NUMBER() OVER () AS __row_num
+  FROM "$LOCAL_TABLE_NAME" AS sd
+) AS src;
+CREATE OR REPLACE VIEW v_property_listing AS SELECT * FROM PropertyListing;
+CREATE OR REPLACE VIEW v_raw_all AS SELECT * FROM "$LOCAL_TABLE_NAME";
+CREATE OR REPLACE VIEW v_all AS SELECT * FROM PropertyListing;
+COMMIT;
+.quit
+SQL
+
+  RAW_TOTAL_ROWS=$(duckdb "$LOCAL_DB_PATH" <<SQL
+.headers off
+.mode list
+SELECT COUNT(*) FROM "$LOCAL_TABLE_NAME";
+.quit
+SQL
+  )
+  RAW_TOTAL_ROWS="$(printf '%s' "$RAW_TOTAL_ROWS" | tr -d '\n\r')"
+
+  RAW_TOTAL_COLUMNS=$(duckdb "$LOCAL_DB_PATH" <<SQL
+.headers off
+.mode list
+SELECT COUNT(*) FROM pragma_table_info('$LOCAL_TABLE_NAME');
+.quit
+SQL
+  )
+  RAW_TOTAL_COLUMNS="$(printf '%s' "$RAW_TOTAL_COLUMNS" | tr -d '\n\r')"
+
+  PROPERTY_TOTAL_ROWS=$(duckdb "$LOCAL_DB_PATH" <<SQL
+.headers off
+.mode list
+SELECT COUNT(*) FROM PropertyListing;
+.quit
+SQL
+  )
+  PROPERTY_TOTAL_ROWS="$(printf '%s' "$PROPERTY_TOTAL_ROWS" | tr -d '\n\r')"
+
+  PROPERTY_TOTAL_COLUMNS=$(duckdb "$LOCAL_DB_PATH" <<SQL
+.headers off
+.mode list
+SELECT COUNT(*) FROM pragma_table_info('PropertyListing');
+.quit
+SQL
+  )
+  PROPERTY_TOTAL_COLUMNS="$(printf '%s' "$PROPERTY_TOTAL_COLUMNS" | tr -d '\n\r')"
+
+  log_merge "=== Merge Summary ($(date)) ==="
+  for file_path in "${SELECTED_FILES[@]}"; do
+    display_name="${file_path#"$SCRIPT_DIR"/}"
+    [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+    log_merge "Source file: $display_name"
+  done
+
+  log_merge ""
+  log_merge "Row counts by source file:"
+  duckdb "$LOCAL_DB_PATH" <<SQL | tee -a "$MERGE_LOG"
+.headers on
+.mode box
+SELECT COALESCE(__source_file, '<<unknown>>') AS source_file,
+       COUNT(*) AS row_count
+FROM "$LOCAL_TABLE_NAME"
+GROUP BY 1
+ORDER BY 1;
+.quit
+SQL
+
+  log_merge ""
+  log_merge "Raw dataset rows: $RAW_TOTAL_ROWS (columns: $RAW_TOTAL_COLUMNS)"
+  log_merge "PropertyListing rows: $PROPERTY_TOTAL_ROWS (columns: $PROPERTY_TOTAL_COLUMNS)"
+
+  if (( ${#MERGE_MAPPED_FIELDS[@]} > 0 )); then
+    log_merge ""
+    log_merge "Columns mapped from source (${#MERGE_MAPPED_FIELDS[@]}):"
+    for mapped in "${MERGE_MAPPED_FIELDS[@]}"; do
+      log_merge "  - $mapped"
+    done
+  fi
+
+  if (( ${#MERGE_DEFAULTED_FIELDS[@]} > 0 )); then
+    log_merge ""
+    log_merge "Columns defaulted or generated (${#MERGE_DEFAULTED_FIELDS[@]}):"
+    for missing in "${MERGE_DEFAULTED_FIELDS[@]}"; do
+      log_merge "  - $missing"
+    done
+  else
+    log_merge ""
+    log_merge "All PropertyListing columns were populated from the source data."
+  fi
+
+  log_merge ""
+  log_merge "Normalized view available as PropertyListing (v_all)."
+  log_merge "Raw combined source table stored as $LOCAL_TABLE_NAME."
+  log_merge ""
+}
+
 load_dataset_into_local_db
+rationalize_dataset
 
 # Metadata
 echo "Loading dataset and showing metadata..."
@@ -291,9 +930,11 @@ SELECT COUNT(*) FROM pragma_table_info('v_all');
 SQL
 )
 
-echo "Dataset dimensions: ${TOTAL_ROWS} rows × ${TOTAL_COLUMNS} columns"
+echo "Raw dataset dimensions: ${RAW_TOTAL_ROWS} rows × ${RAW_TOTAL_COLUMNS} columns"
+echo "PropertyListing dimensions: ${TOTAL_ROWS} rows × ${TOTAL_COLUMNS} columns"
+echo "Merge summary log: $MERGE_LOG"
 echo
-echo "Column overview:"
+echo "Column overview (PropertyListing):"
 duckdb "$LOCAL_DB_PATH" <<'SQL'
 .headers on
 .mode column
