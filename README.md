@@ -2,7 +2,7 @@
 
 Interactive DuckDB tooling for exploring Lee County property records and other large delimited spreadsheets.
 
-## Key Features
+## Key features
 
 - **Menu-driven DuckDB analysis** – [`analyze_csv.sh`](analyze_csv.sh) loads `.csv` or `.xlsx` datasets into a temporary DuckDB view and exposes curated reports for sales trends, ownership concentration, value-add targets, and more.
 - **Automatic column normalization** – the script maps expected Lee County assessor headers (sale date, sale amount, square footage, owner, etc.) so the bundled SQL queries work against new extracts with minimal editing.
@@ -22,6 +22,18 @@ Install the following locally before running the toolkit:
 - **python3** with the [`requests`](https://pypi.org/project/requests/), [`beautifulsoup4`](https://pypi.org/project/beautifulsoup4/), and [`lxml`](https://pypi.org/project/lxml/) packages to power the DFS scraping workflow.
 
 If you intend to use the LLM integration you also need a valid Google Gemini API key.
+
+## Quickstart
+
+- Ensure the example dataset `ParcelListing-Lee County-20251010-1150.csv` (or your own export) is present in the repository root.
+- Run the menu script with the dataset as the first argument to skip interactive prompts:
+
+  ```bash
+  ./analyze_csv.sh 'ParcelListing-Lee County-20251010-1150.csv'
+  ```
+
+- Explore the numbered and lettered options to produce reports. Result tables and SQL statements are saved under `output/` with
+  timestamped filenames so you can revisit a prior run without re-executing the menu flow.
 
 ## Usage
 
@@ -47,7 +59,7 @@ If you intend to use the LLM integration you also need a valid Google Gemini API
    ls output/
    ```
 
-## Menu Reference
+## Menu reference
 
 | Option | Report | Description |
 | ------ | ------ | ----------- |
@@ -63,7 +75,7 @@ If you intend to use the LLM integration you also need a valid Google Gemini API
 | 10 | Florida DFS Licensee Search | Runs the external scraper to fetch licensing search results for a given entity. |
 | L | LLM Prompt / Analysis | Converts natural-language prompts to DuckDB SQL using Gemini, then executes and logs the results. |
 
-## Repository Layout
+## Repository layout
 
 - `analyze_csv.sh` – main menu-driven analysis script (current build with Gemini prompt display and DFS integration).
 - `scripts/fldfs_scraper.py` – Python helper for the DFS licensee search workflow (prints tables or JSON).
@@ -71,6 +83,14 @@ If you intend to use the LLM integration you also need a valid Google Gemini API
 - `older-files/` – archived versions of prior scripts or resources.
 - `ParcelListing-Lee County-20251010-1150.*` – example parcel exports for testing the DuckDB workflows.
 
-## Security Reminder
+## Security reminder
 
 A placeholder Gemini API key is committed for demonstration purposes only. Replace it with your own secret and keep the real value out of version control.
+
+## Troubleshooting tips
+
+- If DuckDB reports that the Excel extension is unavailable, run `duckdb -c "INSTALL 'excel'; LOAD 'excel';"` once manually to
+  let DuckDB cache the artifact before invoking `analyze_csv.sh` again.
+- When the Gemini integration fails with an authentication error, confirm that the `GEMINI_API_KEY` environment variable is set
+  before launching the script (for example, `export GEMINI_API_KEY=sk-...`).
+- For noisy terminal output, pipe the script through `less -R` to preserve color while paging through the menu and results.
