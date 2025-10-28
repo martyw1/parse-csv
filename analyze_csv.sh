@@ -92,6 +92,9 @@ GEMINI_MODEL="models/gemini-2.5-flash"
 # https://generativelanguage.googleapis.com/v1beta/{model}:generateContent
 GEMINI_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent"
 
+: "${DEFAULT_STATE_ABBREV:=FL}"
+: "${DEFAULT_COUNTY_FALLBACK:=Unknown}"
+
 RESPONSE_SCHEMA=$(cat <<'JSON'
 {
   "type": "object",
@@ -113,6 +116,76 @@ normalize_column_name() {
   local raw="$1"
   printf "%s" "$raw" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'
 }
+
+trim_spaces() {
+  local text="$1"
+  text="${text#"${text%%[![:space:]]*}"}"
+  text="${text%"${text##*[![:space:]]}"}"
+  printf '%s' "$text"
+}
+
+normalize_for_match() {
+  local text="$1"
+  if [[ -z "$text" ]]; then
+    return 1
+  fi
+  text="${text,,}"
+  text="$(printf '%s' "$text" | tr -c 'a-z0-9 \012' ' ')"
+  text="${text//$'\n'/ }"
+  while [[ "$text" == *"  "* ]]; do
+    text="${text//  / }"
+  done
+  text="$(trim_spaces "$text")"
+  if [[ -z "$text" ]]; then
+    return 1
+  fi
+  printf ' %s ' "$text"
+}
+
+declare -a FL_COUNTIES=(
+  "Alachua" "Baker" "Bay" "Bradford" "Brevard" "Broward" "Calhoun" "Charlotte"
+  "Citrus" "Clay" "Collier" "Columbia" "DeSoto" "De Soto" "Dixie" "Duval" "Escambia"
+  "Flagler" "Franklin" "Gadsden" "Gilchrist" "Glades" "Gulf" "Hamilton" "Hardee"
+  "Hendry" "Hernando" "Highlands" "Hillsborough" "Holmes" "Indian River" "Jackson"
+  "Jefferson" "Lafayette" "Lake" "Lee" "Leon" "Levy" "Liberty" "Madison" "Manatee"
+  "Marion" "Martin" "Miami-Dade" "Monroe" "Nassau" "Okaloosa" "Okeechobee" "Orange"
+  "Osceola" "Palm Beach" "Pasco" "Pinellas" "Polk" "Putnam" "Santa Rosa" "Sarasota"
+  "Seminole" "St. Johns" "St. Lucie" "Sumter" "Suwannee" "Taylor" "Union" "Volusia"
+  "Wakulla" "Walton" "Washington"
+)
+
+infer_county_from_string() {
+  local text="$1"
+  local normalized
+  normalized="$(normalize_for_match "$text")" || return 1
+  if [[ -z "$normalized" ]]; then
+    return 1
+  fi
+  local normalized_compact
+  normalized_compact="${normalized// }"
+  local county
+  for county in "${FL_COUNTIES[@]}"; do
+    local county_norm
+    county_norm="$(normalize_for_match "$county")" || continue
+    local county_compact
+    county_compact="${county_norm// }"
+    if [[ "$normalized" == *"$county_norm"* || "$normalized_compact" == *"$county_compact"* ]]; then
+      printf '%s' "$county"
+      return 0
+    fi
+  done
+  return 1
+}
+
+DEFAULT_COUNTY_FALLBACK="$(trim_spaces "$DEFAULT_COUNTY_FALLBACK")"
+DEFAULT_STATE_ABBREV="$(trim_spaces "$DEFAULT_STATE_ABBREV")"
+DEFAULT_STATE_ABBREV="${DEFAULT_STATE_ABBREV^^}"
+if [[ -z "$DEFAULT_COUNTY_FALLBACK" ]]; then
+  DEFAULT_COUNTY_FALLBACK="Unknown"
+fi
+if [[ -z "$DEFAULT_STATE_ABBREV" ]]; then
+  DEFAULT_STATE_ABBREV="FL"
+fi
 
 log_merge() {
   local message="$1"
@@ -538,6 +611,7 @@ DEFAULT_EXCEL_SHEET="${2:-}"
 
 declare -a SELECTED_FILES=()
 declare -A FILE_SHEETS=()
+declare -A SOURCE_FILE_COUNTY_MAP=()
 
 if [[ -n "$DEFAULT_INPUT" ]]; then
   if [[ "$DEFAULT_INPUT" == /* ]]; then
@@ -669,6 +743,62 @@ for file_path in "${SELECTED_FILES[@]}"; do
 done
 echo
 
+SOURCE_FILE_COUNTY_MAP=()
+for file_path in "${SELECTED_FILES[@]}"; do
+  display_name="${file_path#"$SCRIPT_DIR"/}"
+  [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+  local_guess=""
+  if ! local_guess="$(infer_county_from_string "$display_name")"; then
+    local_guess=""
+  fi
+  if [[ -z "$local_guess" ]]; then
+    if ! local_guess="$(infer_county_from_string "$(basename "$file_path")")"; then
+      local_guess=""
+    fi
+  fi
+  if [[ -z "$local_guess" ]]; then
+    if ! local_guess="$(infer_county_from_string "$file_path")"; then
+      local_guess=""
+    fi
+  fi
+  if [[ -n "$local_guess" ]]; then
+    SOURCE_FILE_COUNTY_MAP["$display_name"]="$local_guess"
+  fi
+done
+
+if (( ${#SOURCE_FILE_COUNTY_MAP[@]} > 0 )); then
+  echo "Inferred counties from file names:"
+  for source_key in "${!SOURCE_FILE_COUNTY_MAP[@]}"; do
+    printf '  - %s -> %s\n' "$source_key" "${SOURCE_FILE_COUNTY_MAP[$source_key]}"
+  done
+  echo
+fi
+
+declare -a missing_county_sources=()
+for file_path in "${SELECTED_FILES[@]}"; do
+  display_name="${file_path#"$SCRIPT_DIR"/}"
+  [[ -z "$display_name" ]] && display_name="$(basename "$file_path")"
+  if [[ -z "${SOURCE_FILE_COUNTY_MAP[$display_name]-}" ]]; then
+    missing_county_sources+=("$display_name")
+  fi
+done
+
+if (( ${#missing_county_sources[@]} > 0 )); then
+  echo "County could not be inferred for the following sources:"
+  for name in "${missing_county_sources[@]}"; do
+    printf '  - %s\n' "$name"
+  done
+  echo
+fi
+
+if [[ -n "$DEFAULT_COUNTY_FALLBACK" ]]; then
+  echo "County fallback value when missing: $DEFAULT_COUNTY_FALLBACK"
+fi
+if [[ -n "$DEFAULT_STATE_ABBREV" ]]; then
+  echo "State default when missing: $DEFAULT_STATE_ABBREV"
+fi
+echo
+
 load_dataset_into_local_db() {
   echo "Preparing local DuckDB database at $LOCAL_DB_PATH..."
   duckdb "$LOCAL_DB_PATH" <<SQL
@@ -763,6 +893,59 @@ SQL
         else
           expr="CURRENT_TIMESTAMP AS \"$column_name\""
           MERGE_DEFAULTED_FIELDS+=("$column_name (default CURRENT_TIMESTAMP)")
+        fi
+        ;;
+      County)
+        if [[ -n "$found" ]]; then
+          expr="NULLIF(TRIM(CAST(src.\"$found\" AS $column_type)), '') AS \"$column_name\""
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found")
+        else
+          local case_expr=""
+          if (( ${#SOURCE_FILE_COUNTY_MAP[@]} > 0 )); then
+            case_expr="CASE"
+            for source_key in "${!SOURCE_FILE_COUNTY_MAP[@]}"; do
+              local key_sql value_sql
+              key_sql="$(sql_quote "$source_key")"
+              value_sql="$(sql_quote "${SOURCE_FILE_COUNTY_MAP[$source_key]}")"
+              printf -v case_expr "%s\n    WHEN src.__source_file = '%s' THEN '%s'" "$case_expr" "$key_sql" "$value_sql"
+            done
+            if [[ -n "$DEFAULT_COUNTY_FALLBACK" ]]; then
+              local fallback_sql
+              fallback_sql="$(sql_quote "$DEFAULT_COUNTY_FALLBACK")"
+              printf -v case_expr "%s\n    ELSE '%s'" "$case_expr" "$fallback_sql"
+            fi
+            case_expr+=$'\n  END'
+            expr="$case_expr AS \"$column_name\""
+            if [[ -n "$DEFAULT_COUNTY_FALLBACK" ]]; then
+              MERGE_DEFAULTED_FIELDS+=("$column_name (inferred from source file name; fallback '$DEFAULT_COUNTY_FALLBACK')")
+            else
+              MERGE_DEFAULTED_FIELDS+=("$column_name (inferred from source file name)")
+            fi
+          elif [[ -n "$DEFAULT_COUNTY_FALLBACK" ]]; then
+            local fallback_sql
+            fallback_sql="$(sql_quote "$DEFAULT_COUNTY_FALLBACK")"
+            expr="'$fallback_sql' AS \"$column_name\""
+            MERGE_DEFAULTED_FIELDS+=("$column_name (default '$DEFAULT_COUNTY_FALLBACK')")
+          else
+            expr="CAST(NULL AS $column_type) AS \"$column_name\""
+            MERGE_DEFAULTED_FIELDS+=("$column_name")
+          fi
+        fi
+        ;;
+      StateAbbrev)
+        if [[ -n "$found" ]]; then
+          expr="NULLIF(TRIM(CAST(src.\"$found\" AS $column_type)), '') AS \"$column_name\""
+          MERGE_MAPPED_FIELDS+=("$column_name <- $found")
+        else
+          if [[ -n "$DEFAULT_STATE_ABBREV" ]]; then
+            local state_sql
+            state_sql="$(sql_quote "$DEFAULT_STATE_ABBREV")"
+            expr="'$state_sql' AS \"$column_name\""
+            MERGE_DEFAULTED_FIELDS+=("$column_name (default '$DEFAULT_STATE_ABBREV')")
+          else
+            expr="CAST(NULL AS $column_type) AS \"$column_name\""
+            MERGE_DEFAULTED_FIELDS+=("$column_name")
+          fi
         fi
         ;;
       *)
