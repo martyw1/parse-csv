@@ -770,11 +770,11 @@ SQL
           if [[ "$upper_type" =~ ^(VARCHAR|CHAR|TEXT) ]]; then
             expr="NULLIF(TRIM(CAST(src.\"$found\" AS $column_type)), '') AS \"$column_name\""
           elif [[ "$upper_type" == "DATE" ]]; then
-            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS DATE) AS \"$column_name\""
+            expr="TRY_CAST(NULLIF(TRIM(CAST(src.\"$found\" AS VARCHAR)), '') AS DATE) AS \"$column_name\""
           elif [[ "$upper_type" == "TIMESTAMP" ]]; then
-            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS TIMESTAMP) AS \"$column_name\""
+            expr="TRY_CAST(NULLIF(TRIM(CAST(src.\"$found\" AS VARCHAR)), '') AS TIMESTAMP) AS \"$column_name\""
           else
-            expr="TRY_CAST(NULLIF(TRIM(src.\"$found\"), '') AS $column_type) AS \"$column_name\""
+            expr="TRY_CAST(NULLIF(TRIM(CAST(src.\"$found\" AS VARCHAR)), '') AS $column_type) AS \"$column_name\""
           fi
           MERGE_MAPPED_FIELDS+=("$column_name <- $found")
         else
