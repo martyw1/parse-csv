@@ -43,15 +43,10 @@ def write_line(
     *,
     writer: csv.writer,
     sink: TextIO,
-    pass_through: bool,
-    newline: bool,
 ) -> None:
     sanitized = strip_ansi(line)
     writer.writerow([iso_timestamp(), sanitized])
     sink.flush()
-    if pass_through:
-        sys.stdout.write(line + ("\n" if newline else ""))
-        sys.stdout.flush()
 
 
 def process_stream(
@@ -63,6 +58,9 @@ def process_stream(
 ) -> None:
     pending = ""
     for chunk in reader:
+        if pass_through:
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
         pending += chunk
         while True:
             newline_index = pending.find("\n")
@@ -74,8 +72,6 @@ def process_stream(
                 line.rstrip("\r"),
                 writer=writer,
                 sink=sink,
-                pass_through=pass_through,
-                newline=True,
             )
     if pending:
         tail = pending.rstrip("\r")
@@ -83,8 +79,6 @@ def process_stream(
             tail,
             writer=writer,
             sink=sink,
-            pass_through=pass_through,
-            newline=False,
         )
     if pass_through:
         sys.stdout.flush()
