@@ -278,6 +278,10 @@ def build_parser() -> argparse.ArgumentParser:
 def print_text(results: Dict[str, object], max_rows: int) -> None:
     headers = results.get("headers", [])
     rows: List[Dict[str, str]] = results.get("rows", [])  # type: ignore[assignment]
+    if not headers:
+        print("(No headers returned from DFS search.)")
+        return
+
     width = [len(h) for h in headers]
     for row in rows:
         for idx, header in enumerate(headers):
@@ -292,6 +296,10 @@ def print_text(results: Dict[str, object], max_rows: int) -> None:
     divider = "-+-".join("-" * w for w in width)
     print(format_row(headers))
     print(divider)
+    if not rows:
+        print("(No rows returned from DFS search.)")
+        return
+
     for row in rows[:max_rows]:
         print(format_row(row.get(header, "") for header in headers))
     if len(rows) > max_rows:
