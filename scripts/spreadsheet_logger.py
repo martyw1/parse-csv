@@ -8,6 +8,7 @@ import datetime as _dt
 import os
 import re
 import sys
+import codecs
 from typing import Iterable, TextIO
 
 ANSI_CSI_RE = re.compile(r"\x1B\[[0-9;?]*[ -/]*[@-~]")
@@ -47,6 +48,47 @@ def write_line(
     sanitized = strip_ansi(line)
     writer.writerow([iso_timestamp(), sanitized])
     sink.flush()
+
+
+def iter_chunks(handle: TextIO, chunk_size: int = 4096) -> Iterable[str]:
+    """Yield decoded chunks from *handle* without waiting for large buffers."""
+
+    buffer = getattr(handle, "buffer", None)
+    encoding = handle.encoding or "utf-8"
+
+    if buffer is not None and hasattr(buffer, "read1"):
+        raw_reader = buffer.read1
+        use_decoder = True
+    elif hasattr(handle, "fileno"):
+        fd = handle.fileno()
+
+        def raw_reader(size: int) -> bytes:
+            return os.read(fd, size)
+
+        use_decoder = True
+    else:
+        raw_reader = handle.read
+        use_decoder = False
+
+    decoder = (
+        codecs.getincrementaldecoder(encoding)("replace") if use_decoder else None
+    )
+
+    while True:
+        chunk = raw_reader(chunk_size)
+        if not chunk:
+            break
+        if use_decoder:
+            text = decoder.decode(chunk)
+        else:
+            text = chunk
+        if text:
+            yield text
+
+    if use_decoder and decoder is not None:
+        tail = decoder.decode(b"", final=True)
+        if tail:
+            yield tail
 
 
 def process_stream(
@@ -97,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     writer, handle = open_writer(args.logfile)
     try:
         process_stream(
-            reader=iter(lambda: sys.stdin.read(4096), ""),
+            reader=iter_chunks(sys.stdin),
             writer=writer,
             sink=handle,
             pass_through=args.pass_through,
