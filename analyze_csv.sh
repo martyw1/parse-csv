@@ -7,11 +7,38 @@
 set -euo pipefail
 IFS=$'\n'
 
-if command -v clear >/dev/null 2>&1; then
-  clear
-else
-  printf '\033c'
+SUPPORTS_TTY=0
+if [[ -t 1 ]]; then
+  SUPPORTS_TTY=1
 fi
+
+USE_COLOR=0
+if [[ "${FORCE_COLOR:-0}" == "1" ]] && (( SUPPORTS_TTY )) && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
+  USE_COLOR=1
+fi
+
+COLOR_RESET=""
+COLOR_BORDER=""
+COLOR_TITLE=""
+COLOR_ACCENT=""
+if (( USE_COLOR )); then
+  COLOR_RESET='\033[0m'
+  COLOR_BORDER='\033[1;34m'
+  COLOR_TITLE='\033[1;97m'
+  COLOR_ACCENT='\033[1;36m'
+fi
+
+clear_screen() {
+  local should_clear="${CLEAR_SCREEN:-0}"
+  if (( ! SUPPORTS_TTY )) || [[ -n "${DISABLE_CLEAR:-}" ]] || [[ "$should_clear" != "1" ]]; then
+    return
+  fi
+  if command -v clear >/dev/null 2>&1; then
+    clear
+  fi
+}
+
+clear_screen
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGFILE="$SCRIPT_DIR/script-run.log"
@@ -63,17 +90,12 @@ check_dependency() {
 }
 
 print_title_box() {
-  local reset='\033[0m'
-  local border_color='\033[1;34m'
-  local title_color='\033[1;97m'
-  local accent_color='\033[1;36m'
   local border_line="+========================================================================+"
-
-  printf '%b%s%b\n' "$border_color" "$border_line" "$reset"
-  printf '%b| %b%-70s%b %b|\n' "$border_color" "$title_color" "Dataset Parsing Toolkit" "$reset" "$border_color"
-  printf '%b| %b%-70s%b %b|\n' "$border_color" "$accent_color" "industryzoom.ai" "$reset" "$border_color"
-  printf '%b| %b%-70s%b %b|\n' "$border_color" "$title_color" "(c) 2025 industryzoom.ai. All rights reserved." "$reset" "$border_color"
-  printf '%b%s%b\n' "$border_color" "$border_line" "$reset"
+  printf '%s%s%s\n' "$COLOR_BORDER" "$border_line" "$COLOR_RESET"
+  printf '%s| %s%-70s%s %s|\n' "$COLOR_BORDER" "$COLOR_TITLE" "Dataset Parsing Toolkit" "$COLOR_RESET" "$COLOR_BORDER"
+  printf '%s| %s%-70s%s %s|\n' "$COLOR_BORDER" "$COLOR_ACCENT" "industryzoom.ai" "$COLOR_RESET" "$COLOR_BORDER"
+  printf '%s| %s%-70s%s %s|\n' "$COLOR_BORDER" "$COLOR_TITLE" "(c) 2025 industryzoom.ai. All rights reserved." "$COLOR_RESET" "$COLOR_BORDER"
+  printf '%s%s%s\n' "$COLOR_BORDER" "$border_line" "$COLOR_RESET"
   echo
   printf 'Session started: %s\n' "$(date)"
   printf 'Run log: %s\n' "$LOGFILE"
