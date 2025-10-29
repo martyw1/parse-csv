@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOGFILE="$SCRIPT_DIR/script-run.log"
 ANALYSIS_LOG="$SCRIPT_DIR/analysis-results.log"
 MERGE_LOG="$SCRIPT_DIR/merge-summary.log"
+SPREADSHEET_LOGGER="$SCRIPT_DIR/scripts/spreadsheet_logger.py"
 OUTDIR="$SCRIPT_DIR/output"
 
 LOCAL_DB_PATH="$SCRIPT_DIR/local.duckdb"
@@ -109,7 +110,31 @@ JSON
 )
 
 # Function to log and also echo a message
-note () { echo "$*" | tee -a "$ANALYSIS_LOG" >/dev/null; }
+append_spreadsheet_log_stream() {
+  local logfile="$1"
+  python3 "$SPREADSHEET_LOGGER" "$logfile"
+}
+
+append_spreadsheet_log_text() {
+  local logfile="$1"
+  shift || true
+  local message="$*"
+  if [[ -z "$message" ]]; then
+    printf '\n' | python3 "$SPREADSHEET_LOGGER" "$logfile"
+    return
+  fi
+  if [[ "$message" == *$'\n' ]]; then
+    printf '%s' "$message" | python3 "$SPREADSHEET_LOGGER" "$logfile"
+  else
+    printf '%s\n' "$message" | python3 "$SPREADSHEET_LOGGER" "$logfile"
+  fi
+}
+
+note () {
+  local message="$*"
+  printf '%s\n' "$message"
+  append_spreadsheet_log_text "$ANALYSIS_LOG" "$message"
+}
 sql_quote() { printf "%s" "$1" | sed "s/'/''/g"; }
 
 normalize_column_name() {
@@ -189,7 +214,8 @@ fi
 
 log_merge() {
   local message="$1"
-  printf "%s\n" "$message" | tee -a "$MERGE_LOG"
+  printf '%s\n' "$message"
+  append_spreadsheet_log_text "$MERGE_LOG" "$message"
 }
 
 strip_code_fences() {
@@ -213,7 +239,7 @@ sys.stdout.write(text)
 '
 }
 
-exec > >(tee -a "$LOGFILE") 2>&1
+exec > >(python3 "$SPREADSHEET_LOGGER" --pass-through "$LOGFILE") 2>&1
 
 print_title_box
 
@@ -1053,7 +1079,7 @@ SQL
 
   log_merge ""
   log_merge "Row counts by source file:"
-  duckdb "$LOCAL_DB_PATH" <<SQL | tee -a "$MERGE_LOG"
+  duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$MERGE_LOG"
 .headers on
 .mode box
 SELECT COALESCE(__source_file, '<<unknown>>') AS source_file,
@@ -1228,7 +1254,7 @@ INSTRUCTION
             echo "Prompt: $prompt_context"
             echo "HTTP status: $http_status"
             echo "Body: $response_body"
-          } >> "$ANALYSIS_LOG"
+          } | append_spreadsheet_log_stream "$ANALYSIS_LOG"
           break
         fi
 
@@ -1288,7 +1314,7 @@ PY
             echo "=== LLM Prompt Error ==="
             echo "Prompt: $prompt_context"
             echo "Body: $response_body"
-          } >> "$ANALYSIS_LOG"
+          } | append_spreadsheet_log_stream "$ANALYSIS_LOG"
           break
         fi
 
@@ -1299,7 +1325,7 @@ PY
             echo "=== LLM Prompt Error ==="
             echo "Prompt: $prompt_context"
             echo "Body: $generated"
-          } >> "$ANALYSIS_LOG"
+          } | append_spreadsheet_log_stream "$ANALYSIS_LOG"
           break
         fi
 
@@ -1328,7 +1354,7 @@ PY
             echo "=== LLM Prompt Error ==="
             echo "Prompt: $prompt_context"
             echo "Body: $generated"
-          } >> "$ANALYSIS_LOG"
+          } | append_spreadsheet_log_stream "$ANALYSIS_LOG"
           break
         fi
 
@@ -1341,6 +1367,7 @@ PY
         echo "$sql_query"
         echo "--------------------------------------------------"
 
+        : > "$output_file"
         {
           echo "Prompt: $user_prompt"
           if (( ${#clarification_history[@]} > 0 )); then
@@ -1353,9 +1380,9 @@ PY
           echo "$sql_query"
           echo
           echo "Results:"
-        } > "$output_file"
+        } | append_spreadsheet_log_stream "$output_file"
 
-        duckdb "$LOCAL_DB_PATH" <<SQL | tee -a "$output_file"
+        duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 $sql_query
@@ -1374,14 +1401,15 @@ SQL
           echo "$sql_query"
           echo "=== LLM Output File ==="
           echo "$output_file"
-        } >> "$ANALYSIS_LOG"
+        } | append_spreadsheet_log_stream "$ANALYSIS_LOG"
         break
       done
       ;;
     1)
       echo "--- Source dataset – row/column counts ---"
       output_file="$(make_output_file 1)"
-      duckdb <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 $(make_load_prelude)
 .headers on
 .mode box
@@ -1396,7 +1424,8 @@ SQL
     2)
       echo "--- Local DuckDB – row/column counts ---"
       output_file="$(make_output_file 2)"
-      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 SELECT
@@ -1410,7 +1439,8 @@ SQL
     3)
       echo "--- Source dataset – column details ---"
       output_file="$(make_output_file 3)"
-      duckdb <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 $(make_load_prelude)
 .headers on
 .mode box
@@ -1430,7 +1460,8 @@ SQL
     4)
       echo "--- Local DuckDB – column details ---"
       output_file="$(make_output_file 4)"
-      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 SELECT
@@ -1449,7 +1480,8 @@ SQL
     5)
       echo "--- Source dataset – first row (vertical view) ---"
       output_file="$(make_output_file 5)"
-      duckdb <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 $(make_load_prelude)
 .headers on
 .mode box
@@ -1482,7 +1514,8 @@ SQL
     6)
       echo "--- Show the first 50 rows ---"
       output_file="$(make_output_file 6)"
-      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 SELECT *
@@ -1496,7 +1529,8 @@ SQL
     7)
       echo "--- Show the last 50 rows ---"
       output_file="$(make_output_file 7)"
-      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 WITH last_rowids AS (
@@ -1516,7 +1550,8 @@ SQL
     8)
       echo "--- Show every 20th row ---"
       output_file="$(make_output_file 8)"
-      duckdb "$LOCAL_DB_PATH" <<SQL | tee "$output_file"
+      : > "$output_file"
+      duckdb "$LOCAL_DB_PATH" <<SQL | python3 "$SPREADSHEET_LOGGER" --pass-through "$output_file"
 .headers on
 .mode box
 SELECT *
