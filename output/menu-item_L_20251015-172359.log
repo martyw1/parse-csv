@@ -1,0 +1,12 @@
+Prompt: How many properties are owned by an LLC
+
+Generated SQL:
+SELECT COUNT(*) FROM v_all WHERE owner_type = 'LLC';
+
+Results:
+┌─────────┐
+│ Success │
+│ boolean │
+├─────────┤
+│ 0 rows  │
+└─────────┘

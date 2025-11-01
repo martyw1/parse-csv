@@ -1,0 +1,12 @@
+Prompt: Find all properties that are owned by an LLC.  Search any and all fields to find a match.  Use the ACTUAL and REAL (not simulated) field names
+
+Generated SQL:
+SELECT * FROM v_all WHERE to_json_string(*) ILIKE '%LLC%';
+
+Results:
+┌─────────┐
+│ Success │
+│ boolean │
+├─────────┤
+│ 0 rows  │
+└─────────┘

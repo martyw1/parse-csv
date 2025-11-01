@@ -1,0 +1,147 @@
+2025-10-30T17:11:27;=== Merge Summary (Thu Oct 30 17:11:27 EDT 2025) ===
+2025-10-30T17:11:27;Source file: ParcelListing-Lee County-20251010-1150.csv
+2025-10-30T17:11:27;Source file: source datasets/Collier County - Property Appraiser Site Files Download 202051015 - Intfiles_csv/INT_PARCELS.csv
+2025-10-30T17:11:27;
+2025-10-30T17:11:27;Row counts by source file:
+2025-10-30T17:11:27;┌─────────────────────────────────────────────────────────────────────────────────────┬───────────┐
+2025-10-30T17:11:27;│                                     source_file                                     │ row_count │
+2025-10-30T17:11:27;├─────────────────────────────────────────────────────────────────────────────────────┼───────────┤
+2025-10-30T17:11:27;│ ParcelListing-Lee County-20251010-1150.csv                                          │ 13788     │
+2025-10-30T17:11:27;│ source datasets/Collier County - Property Appraiser Site Files Download 20205101... │ 295649    │
+2025-10-30T17:11:27;└─────────────────────────────────────────────────────────────────────────────────────┴───────────┘
+2025-10-30T17:11:27;
+2025-10-30T17:11:27;Raw dataset rows: 309437 (columns: 126)
+2025-10-30T17:11:27;PropertyListing rows: 309437 (columns: 125)
+2025-10-30T17:11:27;
+2025-10-30T17:11:27;Columns mapped from source (119):
+2025-10-30T17:11:27;  - ParcelId <- ParcelId
+2025-10-30T17:11:28;  - STRAP <- STRAP
+2025-10-30T17:11:28;  - Folio <- Folio
+2025-10-30T17:11:28;  - FolioID <- FolioID
+2025-10-30T17:11:28;  - SiteStreetAddress <- SiteStreetAddress
+2025-10-30T17:11:28;  - SiteStreetNumber <- SiteStreetNumber
+2025-10-30T17:11:28;  - SiteStreetName <- SiteStreetName
+2025-10-30T17:11:28;  - SiteStreetType <- SiteStreetType
+2025-10-30T17:11:28;  - SiteStreetOrdinal <- SiteStreetOrdinal
+2025-10-30T17:11:28;  - SiteUnit <- SiteUnit
+2025-10-30T17:11:28;  - SiteCity <- SiteCity
+2025-10-30T17:11:28;  - SiteZipCode <- SiteZipCode
+2025-10-30T17:11:28;  - MapNumber <- MapNumber
+2025-10-30T17:11:28;  - BlockBldg <- BlockBldg
+2025-10-30T17:11:28;  - LotUnit <- LotUnit
+2025-10-30T17:11:28;  - Section <- Section
+2025-10-30T17:11:28;  - Township <- Township
+2025-10-30T17:11:28;  - Range <- Range
+2025-10-30T17:11:28;  - TotalAcres <- TotalAcres
+2025-10-30T17:11:28;  - TaxYear <- TaxYear
+2025-10-30T17:11:28;  - RollType <- RollType
+2025-10-30T17:11:28;  - UseCode <- UseCode
+2025-10-30T17:11:28;  - ClassCode <- ClassCode
+2025-10-30T17:11:28;  - StrapNumber <- StrapNumber
+2025-10-30T17:11:28;  - OwnerLine1 <- OwnerLine1
+2025-10-30T17:11:28;  - OwnerLine2 <- OwnerLine2
+2025-10-30T17:11:28;  - OwnerLine3 <- OwnerLine3
+2025-10-30T17:11:29;  - OwnerLine4 <- OwnerLine4
+2025-10-30T17:11:29;  - OwnerLine5 <- OwnerLine5
+2025-10-30T17:11:29;  - OwnerName <- OwnerName
+2025-10-30T17:11:29;  - OwnerCountry <- OwnerCountry
+2025-10-30T17:11:29;  - OwnerCity <- OwnerCity
+2025-10-30T17:11:29;  - OwnerState <- OwnerState
+2025-10-30T17:11:29;  - OwnerZip <- OwnerZip
+2025-10-30T17:11:29;  - OwnerZipPlus4 <- OwnerZipPlus4
+2025-10-30T17:11:29;  - OwnerForeignMailCode <- OwnerForeignMailCode
+2025-10-30T17:11:29;  - Others <- Others
+2025-10-30T17:11:29;  - CareOf <- CareOf
+2025-10-30T17:11:29;  - OwnerAddress1 <- OwnerAddress1
+2025-10-30T17:11:29;  - OwnerAddress2 <- OwnerAddress2
+2025-10-30T17:11:29;  - ImprovementCode <- ImprovementCode
+2025-10-30T17:11:29;  - ImprovementDescription <- ImprovementDescription
+2025-10-30T17:11:29;  - DORCode <- DORCode
+2025-10-30T17:11:29;  - DORDescription <- DORDescription
+2025-10-30T17:11:29;  - LegalDescription <- LegalDescription
+2025-10-30T17:11:29;  - JustValue <- JustValue
+2025-10-30T17:11:29;  - LandJustValue <- LandJustValue
+2025-10-30T17:11:29;  - ImprovementsJustValue <- ImprovementsJustValue
+2025-10-30T17:11:29;  - TotalJustValue <- TotalJustValue
+2025-10-30T17:11:29;  - LandValue <- LandValue
+2025-10-30T17:11:29;  - BuildingValue <- BuildingValue
+2025-10-30T17:11:29;  - HeatedArea <- HeatedArea
+2025-10-30T17:11:29;  - GrossArea <- GrossArea
+2025-10-30T17:11:30;  - TotalLivingArea <- TotalLivingArea
+2025-10-30T17:11:30;  - LandArea <- LandArea
+2025-10-30T17:11:30;  - Bathrooms <- Bathrooms
+2025-10-30T17:11:30;  - YearBuilt <- YearBuilt
+2025-10-30T17:11:30;  - Pool <- Pool
+2025-10-30T17:11:30;  - ORNumber <- ORNumber
+2025-10-30T17:11:30;  - SaleDate <- SaleDate
+2025-10-30T17:11:30;  - SaleAmount <- SaleAmount
+2025-10-30T17:11:30;  - SOHBenefit <- SohBenefit
+2025-10-30T17:11:30;  - NonSchool10PctBenefit <- NonSchool10PctBenefit
+2025-10-30T17:11:30;  - AgriculturalClassBenefit <- AgriculturalClassBenefit
+2025-10-30T17:11:30;  - CountyAssessedValue <- CountyAssessedValue
+2025-10-30T17:11:30;  - SchoolAssessedValue <- SchoolAssessedValue
+2025-10-30T17:11:30;  - MunicipalAssessedValue <- MunicipalAssessedValue
+2025-10-30T17:11:30;  - OtherAssessedValue <- OtherAssessedValue
+2025-10-30T17:11:30;  - HmstdExemptAmount <- HmstdExemptAmount
+2025-10-30T17:11:30;  - NonSchoolAddHmstdExemptAmount <- NonSchoolAddHmstdExemptAmount
+2025-10-30T17:11:30;  - CountySeniorExemptAmount <- CountySeniorExemptAmount
+2025-10-30T17:11:30;  - MunicipalSeniorExemptAmount <- MunicipalSeniorExemptAmount
+2025-10-30T17:11:30;  - CountyLongTermSeniorExemptAmount <- CountyLongTermSeniorExemptAmount
+2025-10-30T17:11:30;  - DisabledExemptPct <- DisabledExemptPct
+2025-10-30T17:11:30;  - DisabledExemptCode <- DisabledExemptCode
+2025-10-30T17:11:30;  - DisabledExemptDesc <- DisabledExemptDesc
+2025-10-30T17:11:30;  - DisabledExemptAmount <- DisabledExemptAmount
+2025-10-30T17:11:30;  - CivExemptAmount <- CivExemptAmount
+2025-10-30T17:11:30;  - VetExemptAmount <- VetExemptAmount
+2025-10-30T17:11:31;  - WidowExemptAmount <- WidowExemptAmount
+2025-10-30T17:11:31;  - BlindExemptAmount <- BlindExemptAmount
+2025-10-30T17:11:31;  - WhollyExemptPct <- WhollyExemptPct
+2025-10-30T17:11:31;  - WhollyExemptCode <- WhollyExemptCode
+2025-10-30T17:11:31;  - WhollyExemptDesc <- WhollyExemptDesc
+2025-10-30T17:11:31;  - NonSchoolWhollyExemptAmount <- NonSchoolWhollyExemptAmount
+2025-10-30T17:11:31;  - SchoolWhollyExemptAmount <- SchoolWhollyExemptAmount
+2025-10-30T17:11:31;  - DisableVetExemptPct <- DisableVetExemptPct
+2025-10-30T17:11:31;  - CountyDisabledVetExemptAmount <- CountyDisabledVetExemptAmount
+2025-10-30T17:11:31;  - SchoolDisabledVetExemptAmount <- SchoolDisabledVetExemptAmount
+2025-10-30T17:11:31;  - MunicipalDisabledVetExemptAmount <- MunicipalDisabledVetExemptAmount
+2025-10-30T17:11:31;  - OtherDisabledVetExemptAmount <- OtherDisabledVetExemptAmount
+2025-10-30T17:11:31;  - DeployedExemptPct <- DeployedExemptPct
+2025-10-30T17:11:31;  - CountyDeployedExemptAmount <- CountyDeployedExemptAmount
+2025-10-30T17:11:31;  - SchoolDeployedExemptAmount <- SchoolDeployedExemptAmount
+2025-10-30T17:11:31;  - MunicipalDeployedExemptAmount <- MunicipalDeployedExemptAmount
+2025-10-30T17:11:31;  - OtherDeployedExemptAmount <- OtherDeployedExemptAmount
+2025-10-30T17:11:31;  - AfdHsgExemptPct <- AfdHsgExemptPct
+2025-10-30T17:11:31;  - CountyAfdHsgExemptAmount <- CountyAfdHsgExemptAmount
+2025-10-30T17:11:31;  - SchoolAfdHsgExemptAmount <- SchoolAfdHsgExemptAmount
+2025-10-30T17:11:31;  - MunicipalAfdHsgExemptAmount <- MunicipalAfdHsgExemptAmount
+2025-10-30T17:11:31;  - OtherAfdHsgExemptAmount <- OtherAfdHsgExemptAmount
+2025-10-30T17:11:31;  - CountyTaxableValue <- CountyTaxableValue
+2025-10-30T17:11:31;  - SchoolTaxableValue <- SchoolTaxableValue
+2025-10-30T17:11:31;  - MunicipalTaxableValue <- MunicipalTaxableValue
+2025-10-30T17:11:31;  - OtherTaxableValue <- OtherTaxableValue
+2025-10-30T17:11:32;  - MillageArea <- MillageArea
+2025-10-30T17:11:32;  - CountyMillage <- CountyMillage
+2025-10-30T17:11:32;  - SchoolMillage <- SchoolMillage
+2025-10-30T17:11:32;  - MunicipalMillage <- MunicipalMillage
+2025-10-30T17:11:32;  - OtherMillage <- OtherMillage
+2025-10-30T17:11:32;  - CountyTaxes <- CountyTaxes
+2025-10-30T17:11:32;  - SchoolTaxes <- SchoolTaxes
+2025-10-30T17:11:32;  - MunicipalTaxes <- MunicipalTaxes
+2025-10-30T17:11:32;  - OtherTaxes <- OtherTaxes
+2025-10-30T17:11:32;  - TotalAdvTaxes <- TotalAdvTaxes
+2025-10-30T17:11:32;  - TotalNadvTaxes <- TotalNadvTaxes
+2025-10-30T17:11:32;  - TotalTaxes <- TotalTaxes
+2025-10-30T17:11:32;  - GisFlnNum <- GisFlnNum
+2025-10-30T17:11:32;  - RowCheckSum <- RowCheckSum
+2025-10-30T17:11:32;
+2025-10-30T17:11:32;Columns defaulted or generated (6):
+2025-10-30T17:11:32;  - ListingID (generated internal ID)
+2025-10-30T17:11:32;"  - County (inferred from source file name; fallback 'Unknown')"
+2025-10-30T17:11:32;  - StateAbbrev (default 'FL')
+2025-10-30T17:11:32;  - SubdivisionCondoNum
+2025-10-30T17:11:32;  - CreatedAt (default CURRENT_TIMESTAMP)
+2025-10-30T17:11:32;  - UpdatedAt (default CURRENT_TIMESTAMP)
+2025-10-30T17:11:32;
+2025-10-30T17:11:32;Normalized view available as PropertyListing (v_all).
+2025-10-30T17:11:33;Raw combined source table stored as source_dataset.
+2025-10-30T17:11:33;

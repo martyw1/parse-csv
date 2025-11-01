@@ -1,0 +1,40 @@
+┌──────────────────┬────────────────────────┬───────────┬────────┬─────────────┬───────────────┐
+│ ordinal_position │      column_name       │ data_type │ length │ is_nullable │ default_value │
+├──────────────────┼────────────────────────┼───────────┼────────┼─────────────┼───────────────┤
+│ 0                │ FolioID                │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 1                │ STRAP                  │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 2                │ SiteStreetNumber       │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 3                │ SiteStreetName         │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 4                │ SiteUnit               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 5                │ SiteCity               │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 6                │ SiteZIP                │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 7                │ OwnerName              │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 8                │ Others                 │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 9                │ CareOf                 │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 10               │ OwnerAddress1          │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 11               │ OwnerAddress2          │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 12               │ OwnerCity              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 13               │ OwnerState             │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 14               │ OwnerZip               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 15               │ OwnerCountry           │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 16               │ ImprovementCode        │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 17               │ ImprovementDescription │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 18               │ DORCode                │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 19               │ DORDescription         │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 20               │ JustValue              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 21               │ LandValue              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 22               │ BuildingValue          │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 23               │ HeatedArea             │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 24               │ Bathrooms              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 25               │ YearBuilt              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 26               │ Pool                   │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 27               │ ORNumber               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 28               │ SaleDate               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 29               │ SaleAmount             │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 30               │ GrossArea              │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 31               │ TotalLivingArea        │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 32               │ LandArea               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 33               │ LandCode               │ DOUBLE    │ NULL   │ YES         │ NULL          │
+│ 34               │ LandDescription        │ VARCHAR   │ NULL   │ YES         │ NULL          │
+│ 35               │ LegalDescription       │ VARCHAR   │ NULL   │ YES         │ NULL          │
+└──────────────────┴────────────────────────┴───────────┴────────┴─────────────┴───────────────┘

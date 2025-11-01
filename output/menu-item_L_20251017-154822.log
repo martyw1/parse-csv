@@ -1,0 +1,11 @@
+Prompt: Show me all the records that have LLC in the OwnerName field and give me the total count of records and a percentage of the total records 
+
+Generated SQL:
+SELECT COUNT(*) AS LLC_records_count, (CAST(COUNT(*) AS DOUBLE) * 100.0 / (SELECT COUNT(*) FROM v_all)) AS percentage_of_total FROM v_all WHERE OwnerName LIKE '%LLC%';
+
+Results:
+┌───────────────────┬─────────────────────┐
+│ LLC_records_count │ percentage_of_total │
+├───────────────────┼─────────────────────┤
+│ 6475              │ 46.9611256164781    │
+└───────────────────┴─────────────────────┘

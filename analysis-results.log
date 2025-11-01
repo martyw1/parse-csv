@@ -1,0 +1,160 @@
+=== LLM Prompt ===
+show me the first row the data
+=== LLM SQL ===
+SELECT * FROM v_all LIMIT 1;
+=== LLM Output File ===
+output/menu-item_L_20251013-164912.log
+=== LLM Prompt ===
+show me the second row
+=== LLM SQL ===
+SELECT * FROM v_all LIMIT 1 OFFSET 1;
+=== LLM Output File ===
+output/menu-item_L_20251013-164928.log
+=== LLM Prompt ===
+show me all the rows which have 'myers' not case sensitive anywhere in the row
+=== LLM SQL ===
+SELECT * FROM v_all WHERE CAST(v_all AS VARCHAR) ILIKE '%myers%';
+=== LLM Output File ===
+output/menu-item_L_20251013-165243.log
+=== LLM Prompt ===
+Show me the first row
+=== LLM SQL ===
+SELECT * FROM v_all LIMIT 1;
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251015-172117.log
+=== LLM Prompt Error ===
+Prompt: Show the last 50 rows and make the output somewhat easy to read in a terminal window
+Body: ```json
+{
+  "needs_clarification": false,
+  "clarifying_question": null,
+  "sql": "SELECT * FROM v_all ORDER BY FolioID DESC LIMIT 50;"
+}
+```
+=== LLM Prompt Error ===
+Prompt: Show me the first row
+Body: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"needs_clarification\": false,\n  \"clarifying_question\": null,\n  \"sql\": \"SELECT * FROM v_all LIMIT 1;\"\n}\n```"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 384,
+    "candidatesTokenCount": 44,
+    "totalTokenCount": 467,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 384
+      }
+    ],
+    "thoughtsTokenCount": 39
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "PJXyaMiLMbiHz7IPnLDVsQg"
+}
+=== LLM Prompt Error ===
+Prompt: Show me the first 10 rows of the loaded dataset
+Body: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"needs_clarification\": false,\n  \"clarifying_question\": null,\n  \"sql\": \"SELECT * FROM v_all LIMIT 10;\"\n}\n```"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 391,
+    "candidatesTokenCount": 45,
+    "totalTokenCount": 474,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 391
+      }
+    ],
+    "thoughtsTokenCount": 38
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "a5XyaKyOGK2fz7IPvduA0Qo"
+}
+=== LLM Prompt ===
+show me the first row
+=== LLM SQL ===
+SELECT * FROM v_all LIMIT 1;
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-153756.log
+=== LLM Prompt ===
+Show me all the rows with "FORT MYERS" somewhere in the record
+=== Clarifications ===
+Q: Which specific column or columns should I search for "FORT MYERS"?
+A: any column
+=== LLM SQL ===
+SELECT * FROM v_all WHERE CAST(FolioID AS VARCHAR) ILIKE '%FORT MYERS%' OR STRAP ILIKE '%FORT MYERS%' OR CAST(SiteStreetNumber AS VARCHAR) ILIKE '%FORT MYERS%' OR SiteStreetName ILIKE '%FORT MYERS%' OR CAST(SiteUnit AS VARCHAR) ILIKE '%FORT MYERS%' OR SiteCity ILIKE '%FORT MYERS%' OR CAST(SiteZIP AS VARCHAR) ILIKE '%FORT MYERS%' OR OwnerName ILIKE '%FORT MYERS%' OR Others ILIKE '%FORT MYERS%' OR CAST(CareOf AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerAddress1 AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerAddress2 AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerCity AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerState AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerZip AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(OwnerCountry AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(ImprovementCode AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(ImprovementDescription AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(DORCode AS VARCHAR) ILIKE '%FORT MYERS%' OR DORDescription ILIKE '%FORT MYERS%' OR CAST(JustValue AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(LandValue AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(BuildingValue AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(HeatedArea AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(Bathrooms AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(YearBuilt AS VARCHAR) ILIKE '%FORT MYERS%' OR Pool ILIKE '%FORT MYERS%' OR CAST(ORNumber AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(SaleDate AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(SaleAmount AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(GrossArea AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(TotalLivingArea AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(LandArea AS VARCHAR) ILIKE '%FORT MYERS%' OR CAST(LandCode AS VARCHAR) ILIKE '%FORT MYERS%' OR LandDescription ILIKE '%FORT MYERS%' OR LegalDescription ILIKE '%FORT MYERS%';
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-154146.log
+=== LLM Prompt ===
+Show me all records which have "FORT MYERS" in the record.
+=== LLM SQL ===
+SELECT * FROM v_all WHERE STRAP ILIKE '%FORT MYERS%' OR SiteStreetName ILIKE '%FORT MYERS%' OR SiteCity ILIKE '%FORT MYERS%' OR OwnerName ILIKE '%FORT MYERS%' OR Others ILIKE '%FORT MYERS%' OR DORDescription ILIKE '%FORT MYERS%' OR Pool ILIKE '%FORT MYERS%' OR LandDescription ILIKE '%FORT MYERS%' OR LegalDescription ILIKE '%FORT MYERS%';
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-154457.log
+=== LLM Prompt ===
+Show me all the records that have LLC in the OwnerName field and give me the total count of records and a percentage of the total records 
+=== LLM SQL ===
+SELECT COUNT(*) AS LLC_records_count, (CAST(COUNT(*) AS DOUBLE) * 100.0 / (SELECT COUNT(*) FROM v_all)) AS percentage_of_total FROM v_all WHERE OwnerName LIKE '%LLC%';
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-154822.log
+=== LLM Prompt ===
+Pick any single record which has "LLC" in the OwnerName field and then go to sunbiz.org and find that OwnerName record in sunbiz.  Show the record you found before going to sunbiz and then do the search in sunbiz and give results
+=== LLM SQL ===
+SELECT * FROM v_all WHERE OwnerName LIKE '%LLC%' LIMIT 1;
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-155157.log
+=== LLM Prompt ===
+Show me all the parcels which are office buildins and are over 10000 sq ft in zip code 33919
+=== LLM SQL ===
+SELECT * FROM v_all WHERE DORDescription ILIKE '%OFFICE%' AND GrossArea > 10000 AND SiteZIP = 33919;
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251017-162155.log
+=== LLM Prompt ===
+show me all the properties that are vacant
+=== Clarifications ===
+Q: What specific column or criteria should I use to identify properties as 'vacant'?
+A: take your best guess, and find perhaps the word vacant somewhere in each record.  Then list the records that you found.
+=== LLM SQL ===
+SELECT * FROM v_all WHERE DORDescription ILIKE '%vacant%' OR LegalDescription ILIKE '%vacant%' OR LandDescription ILIKE '%vacant%';
+=== LLM Output File ===
+/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251018-172111.log
+2025-10-28T21:36:31;=== LLM Prompt ===
+2025-10-28T21:36:31;Show me row 2400
+2025-10-28T21:36:31;=== LLM SQL ===
+2025-10-28T21:36:31;"SELECT * FROM v_all ORDER BY ListingID LIMIT 1 OFFSET 2399;"
+2025-10-28T21:36:31;=== LLM Output File ===
+2025-10-28T21:36:31;/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251028-213629.log
+2025-10-30T17:14:47;=== LLM Prompt ===
+2025-10-30T17:14:47;show me all the properties where the property is occupied
+2025-10-30T17:14:47;=== Clarifications ===
+2025-10-30T17:14:47;Q: There is no direct column that indicates if a property is 'occupied'. Could you please specify which column or criteria I should use to determine if a property is occupied?
+2025-10-30T17:14:47;A: just find the word occupied in the record somehere and that will suffice.
+2025-10-30T17:14:47;=== LLM SQL ===
+2025-10-30T17:14:47;"SELECT * FROM v_all WHERE LOWER(COALESCE(ListingID, '') || COALESCE(County, '') || COALESCE(StateAbbrev, '') || COALESCE(ParcelId, '') || COALESCE(STRAP, '') || COALESCE(Folio, '') || COALESCE(FolioID, '') || COALESCE(SiteStreetAddress, '') || COALESCE(SiteStreetNumber, '') || COALESCE(SiteStreetName, '') || COALESCE(SiteStreetType, '') || COALESCE(SiteStreetOrdinal, '') || COALESCE(SiteUnit, '') || COALESCE(SiteCity, '') || COALESCE(SiteZipCode, '') || COALESCE(SubdivisionCondoNum, '') || COALESCE(MapNumber, '') || COALESCE(BlockBldg, '') || COALESCE(LotUnit, '') || COALESCE(Section, '') || COALESCE(Township, '') || COALESCE(Range, '') || COALESCE(RollType, '') || COALESCE(UseCode, '') || COALESCE(ClassCode, '') || COALESCE(StrapNumber, '') || COALESCE(OwnerLine1, '') || COALESCE(OwnerLine2, '') || COALESCE(OwnerLine3, '') || COALESCE(OwnerLine4, '') || COALESCE(OwnerLine5, '') || COALESCE(OwnerName, '') || COALESCE(OwnerCountry, '') || COALESCE(OwnerCity, '') || COALESCE(OwnerState, '') || COALESCE(OwnerZip, '') || COALESCE(OwnerZipPlus4, '') || COALESCE(OwnerForeignMailCode, '') || COALESCE(Others, '') || COALESCE(CareOf, '') || COALESCE(OwnerAddress1, '') || COALESCE(OwnerAddress2, '') || COALESCE(ImprovementCode, '') || COALESCE(ImprovementDescription, '') || COALESCE(DORCode, '') || COALESCE(DORDescription, '') || COALESCE(LegalDescription, '') || COALESCE(Pool, '') || COALESCE(ORNumber, '') || COALESCE(DisabledExemptCode, '') || COALESCE(DisabledExemptDesc, '') || COALESCE(WhollyExemptCode, '') || COALESCE(WhollyExemptDesc, '') || COALESCE(MillageArea, '') || COALESCE(GisFlnNum, '')) LIKE '%occupied%';"
+2025-10-30T17:14:47;=== LLM Output File ===
+2025-10-30T17:14:47;/Users/mwolfe/Downloads/code/parse-csv/output/menu-item_L_20251030-171405.log

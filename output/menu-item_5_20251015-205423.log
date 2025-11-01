@@ -1,0 +1,46 @@
+┌─────────┐
+│ Success │
+│ boolean │
+├─────────┤
+│ 0 rows  │
+└─────────┘
+┌────────────────────────┬─────────────────────────────────────────────────────────────────────────┐
+│      column_name       │                                  value                                  │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────┤
+│ FolioID                │ 10549237.0                                                              │
+│ STRAP                  │ "18-45-25-21-00000.00CE"                                                │
+│ SiteStreetNumber       │ null                                                                    │
+│ SiteStreetName         │ "12663 METRO CONDO C/E"                                                 │
+│ SiteUnit               │ null                                                                    │
+│ SiteCity               │ "FORT MYERS"                                                            │
+│ SiteZIP                │ 33966.0                                                                 │
+│ OwnerName              │ "12663 METRO CONDOMINIUM"                                               │
+│ Others                 │ "ASSN  INC"                                                             │
+│ CareOf                 │ null                                                                    │
+│ OwnerAddress1          │ null                                                                    │
+│ OwnerAddress2          │ null                                                                    │
+│ OwnerCity              │ null                                                                    │
+│ OwnerState             │ null                                                                    │
+│ OwnerZip               │ null                                                                    │
+│ OwnerCountry           │ null                                                                    │
+│ ImprovementCode        │ null                                                                    │
+│ ImprovementDescription │ null                                                                    │
+│ DORCode                │ 10.0                                                                    │
+│ DORDescription         │ "VACANT COMMERCIAL"                                                     │
+│ JustValue              │ 0.0                                                                     │
+│ LandValue              │ 0.0                                                                     │
+│ BuildingValue          │ 0.0                                                                     │
+│ HeatedArea             │ 0.0                                                                     │
+│ Bathrooms              │ 0.0                                                                     │
+│ YearBuilt              │ null                                                                    │
+│ Pool                   │ "No"                                                                    │
+│ ORNumber               │ null                                                                    │
+│ SaleDate               │ null                                                                    │
+│ SaleAmount             │ null                                                                    │
+│ GrossArea              │ 0.0                                                                     │
+│ TotalLivingArea        │ 0.0                                                                     │
+│ LandArea               │ 45686.0                                                                 │
+│ LandCode               │ 0.0                                                                     │
+│ LandDescription        │ "DRY"                                                                   │
+│ LegalDescription       │ "12663 METRO CONDOMINIUM AS DESC IN INST# 2008000031138 COMMON ELEMENT" │
+└────────────────────────┴─────────────────────────────────────────────────────────────────────────┘
