@@ -1,3 +1,5 @@
 source datasets/
 source datasets/
 local.duckdb
+source datasets/
+local.duckdb
