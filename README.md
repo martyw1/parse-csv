@@ -2,6 +2,17 @@
 
 Interactive DuckDB tooling for normalizing, inspecting, and querying large property record extracts.
 
+## Detailed application overview
+
+The toolkit is designed for analysts who receive irregular property listing exports and need a consistent, queryable dataset without building a custom ETL pipeline each time. It combines a guided loader (`analyze_csv.sh`), a structured normalization step, and a repeatable analysis menu that leaves a DuckDB database behind for follow-up work.
+
+- **End-to-end normalization flow** – the loader guides you from file selection through schema alignment, taking disparate CSV/TXT/Excel exports and projecting them into the canonical `PropertyListing` table in `local.duckdb`.
+- **Metadata-first inspection** – before you write SQL, the menu summarizes row counts, column types, and sample records so you can validate assumptions early and reuse the exact DuckDB SQL captured in the logs.
+- **Repeatable merge auditing** – every ingestion records mapped columns, defaults, and per-source row counts in `merge-summary.log`, making it clear which inputs required inferred data.
+- **Structured logging for analysis** – the script mirrors all terminal output to semicolon-delimited log files (`script-run.log`, `analysis-results.log`, and files under `output/`) so results can be reviewed or shared in spreadsheets.
+- **Reopenable analytics workspace** – the materialized `local.duckdb` file includes helper views (`v_all`, `v_property_listing`, `v_raw_all`), letting you reattach with the DuckDB CLI to run additional queries without reloading files.
+- **Optional assisted SQL generation** – the LLM option assembles a prompt with available columns, sends it to Gemini, and captures both the generated SQL and the response context for reproducibility.
+
 ## Key features
 
 - **Multi-file ingestion** – [`analyze_csv.sh`](analyze_csv.sh) accepts one or more `.csv`, `.txt`, `.xlsx`, or `.xls` files, captures the source filename, and unions them into a single staging view.
