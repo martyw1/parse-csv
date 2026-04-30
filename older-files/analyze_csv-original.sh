@@ -9,8 +9,8 @@ LOGFILE="script-run.log"
 ANALYSIS_LOG="analysis-results.log"
 OUTDIR="out"
 
-# Your actual API key (hardcoded as requested)
-GEMINI_API_KEY="AIzaSyDCuNdhjqtH20jLbuxtpOd4tMgy-mCe5Ak"
+# Supply GEMINI_API_KEY through the environment; do not commit a key here.
+GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 
 # Choose the Gemini model to use
 # You can change this to e.g. gemini-2.5-flash, gemini-1.5-pro, etc.

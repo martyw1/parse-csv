@@ -8,7 +8,7 @@
 - column normalization for common assessor-style headers
 - worksheet selection for Excel workbooks
 - timestamped output files for every menu action
-- Gemini-assisted natural-language querying through option `L`
+- Gemini-assisted natural-language querying through option `L` when `GEMINI_API_KEY` is set in your environment
 - Florida DFS licensee lookup through option `10`
 - run logs in `script-run.log`, `analysis-results.log`, and `merge-summary.log`
 
@@ -45,5 +45,5 @@ Typical flow:
 ## Important Notes
 
 - Option `L` sends a natural-language prompt to Gemini and executes the returned DuckDB SQL.
-- The current script contains a committed Gemini key value. Replace it with your own secret-handling approach before relying on the LLM path.
+- The current script reads `GEMINI_API_KEY` from the environment and redacts it in console output. Set the variable locally before using the LLM path.
 - This repo is effectively a sibling copy of the same workflow, not a separate product with a different runtime.

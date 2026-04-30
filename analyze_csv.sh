@@ -104,8 +104,8 @@ print_title_box() {
   echo
 }
 
-# Your actual API key (hardcoded as requested)
-GEMINI_API_KEY="AIzaSyDCuNdhjqtH20jLbuxtpOd4tMgy-mCe5Ak"
+# Supply GEMINI_API_KEY through the environment; do not commit a key here.
+GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 
 # Choose the Gemini model to use
 # You can change this to e.g. gemini-2.5-flash, gemini-1.5-pro, etc.
@@ -169,6 +169,19 @@ trim_spaces() {
   text="${text#"${text%%[![:space:]]*}"}"
   text="${text%"${text##*[![:space:]]}"}"
   printf '%s' "$text"
+}
+
+redact_secret() {
+  local value="$1"
+  if [[ -z "$value" ]]; then
+    printf '<unset>'
+    return
+  fi
+  if (( ${#value} <= 8 )); then
+    printf '%*s' "${#value}" '' | tr ' ' '*'
+    return
+  fi
+  printf '%s…%s' "${value:0:4}" "${value: -4}"
 }
 
 normalize_for_match() {
@@ -1216,6 +1229,10 @@ while true; do
         echo "No prompt entered."
         continue
       fi
+      if [[ -z "$GEMINI_API_KEY" ]]; then
+        echo "ERROR: Set GEMINI_API_KEY in your environment before using option L."
+        continue
+      fi
 
       output_file="$(make_output_file L)"
       prompt_context="$user_prompt"
@@ -1251,7 +1268,7 @@ INSTRUCTION
           }' )
 
         echo "=== Will send to LLM ==="
-        echo "API Key: $GEMINI_API_KEY"
+        echo "API Key: $(redact_secret "$GEMINI_API_KEY")"
         echo "Endpoint: $GEMINI_ENDPOINT"
         echo "Prompt JSON body:"
         echo "$json_body"
