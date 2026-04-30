@@ -104,8 +104,8 @@ print_title_box() {
   echo
 }
 
-# Your actual API key (hardcoded as requested)
-GEMINI_API_KEY="AIzaSyDCuNdhjqtH20jLbuxtpOd4tMgy-mCe5Ak"
+# Read the Gemini API key from the environment instead of committing it.
+GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 
 # Choose the Gemini model to use
 # You can change this to e.g. gemini-2.5-flash, gemini-1.5-pro, etc.
@@ -1250,8 +1250,14 @@ INSTRUCTION
             }
           }' )
 
+        if [[ -z "$GEMINI_API_KEY" ]]; then
+          echo "ERROR: GEMINI_API_KEY is not set."
+          echo "Set it in your shell and rerun option L."
+          break
+        fi
+
         echo "=== Will send to LLM ==="
-        echo "API Key: $GEMINI_API_KEY"
+        echo "API Key: set via GEMINI_API_KEY"
         echo "Endpoint: $GEMINI_ENDPOINT"
         echo "Prompt JSON body:"
         echo "$json_body"

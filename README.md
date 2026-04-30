@@ -45,5 +45,5 @@ Typical flow:
 ## Important Notes
 
 - Option `L` sends a natural-language prompt to Gemini and executes the returned DuckDB SQL.
-- The current script contains a committed Gemini key value. Replace it with your own secret-handling approach before relying on the LLM path.
+- Set `GEMINI_API_KEY` in your shell before using option `L`; the script reads the key from the environment and no longer stores it in the repo.
 - The tool is designed for exploratory local analysis, not for a long-running service.
