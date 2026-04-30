@@ -8,7 +8,7 @@ LOGFILE="script-run.log"
 ANALYSIS_LOG="analysis-results.log"
 OUTDIR="out"
 
-GEMINI_API_KEY="YOUR_GOOGLE_GEMINI_API_KEY"
+GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 GEMINI_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 exec > >(tee -a "$LOGFILE") 2>&1

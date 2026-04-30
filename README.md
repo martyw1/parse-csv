@@ -94,11 +94,11 @@ If you intend to use the LLM integration you also need a valid Google Gemini API
 
 ## Security reminder
 
-A placeholder Gemini API key is committed for demonstration purposes only. Replace it with your own secret and keep the real value out of version control.
+The LLM path reads `GEMINI_API_KEY` from the local environment and redacts it in console output. Set the variable locally before using option `L`, and keep real API keys out of version control.
 
 ## Troubleshooting tips
 
 - If DuckDB reports that the Excel extension is unavailable, run `duckdb -c "INSTALL 'excel'; LOAD 'excel';"` once manually to let DuckDB cache the artifact before invoking `analyze_csv.sh` again.
-- When the Gemini integration fails with an authentication error, confirm that the `GEMINI_API_KEY` environment variable is set before launching the script (for example, `export GEMINI_API_KEY=sk-...`).
+- When the Gemini integration fails with an authentication error, confirm that the `GEMINI_API_KEY` environment variable is set before launching the script.
 - To disable screen clearing, export `CLEAR_SCREEN=0`. For colorized borders, export `FORCE_COLOR=1` (honoring `NO_COLOR` and non-TTY detection).
 - For noisy terminal output, pipe the script through `less -R` to preserve color while paging through the menu and results.
